@@ -840,6 +840,7 @@ def get_data_for_off_policy_training(obs, actions, next_obs, goals, relabel_mode
       deltas = np.random.geometric(geom_p, size=(num_batches, seq_len))
       next_obs_idxs_for_relabelling = []
       relabel_masks = []
+      # sample in the units of sequences
       for i in range(num_batches):
         for j in range(seq_len):
           if relabel_mode == 'uniform':
@@ -848,6 +849,7 @@ def get_data_for_off_policy_training(obs, actions, next_obs, goals, relabel_mode
           elif relabel_mode == 'geometric':
             next_obs_idxs_for_relabelling.append(min((seq_len * i) + j + deltas[i, j] - 1, seq_len * (i + 1) - 1))
         
+          # not itself.
           relabel_masks.append(int(next_obs_idxs_for_relabelling[-1] != ((seq_len*i) + j)))
     
       next_obs_idxs_for_relabelling = np.array(next_obs_idxs_for_relabelling).reshape(-1, 1)
@@ -855,10 +857,12 @@ def get_data_for_off_policy_training(obs, actions, next_obs, goals, relabel_mode
     
       idxs = np.random.permutation(num_points).reshape(-1,1)
       relabel_idxs, non_relabel_idxs = np.split(idxs, (int(relabel_fraction*num_points),), axis = 0)
+      # chang the order
       curr_state, action, next_state = tf.gather_nd(curr_state, idxs), tf.gather_nd(action, idxs),  tf.gather_nd(next_state, idxs)
     
+      # the first few
       _relabeled_goals = tf.gather_nd(next_state, next_obs_idxs_for_relabelling[relabel_idxs.flatten()])
-      if feat_to_embed_func is not None:
+      if feat_to_embed_func is not None: 
         _relabeled_goals = feat_to_embed_func(_relabeled_goals)
 
       _goals = tf.concat([ _relabeled_goals, tf.gather_nd(_goals, non_relabel_idxs)], axis = 0)

@@ -62,6 +62,7 @@ class WorldModel(tools.Module):
         grad_head = (name in self._config.grad_heads)
         inp = feat if grad_head else tf.stop_gradient(feat)
         pred = head(inp, tf.float32)
+        # maximum likelihood.
         like = pred.log_prob(tf.cast(data[name], tf.float32))
         likes[name] = tf.reduce_mean(like) * self._scales.get(name, 1.0)
       model_loss = kl_loss - sum(likes.values())

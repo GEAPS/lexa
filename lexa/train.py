@@ -8,7 +8,8 @@ import pathlib
 import off_policy
 from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args
 
-
+# goal conditioned dreamer
+# what does skill mean?
 class GCDreamer(Dreamer):
   def __init__(self, config, logger, dataset):
     if config.offpolicy_opt:
@@ -55,7 +56,7 @@ class GCDreamer(Dreamer):
     random_batch = next(self._dataset)
     random_batch = self._wm.preprocess(random_batch)
     
-    images = random_batch['image']
+    images = random_batch['image'] # does image only mean imaging.
     states = random_batch['state']
     if self._config.labelled_env_multiplexing:
       assert obs['env_idx'].shape[0] == 1
@@ -68,10 +69,12 @@ class GCDreamer(Dreamer):
     random_goals = tf.reshape(images, (-1,) + tuple(images.shape[2:]))
     random_goal_states = tf.reshape(states, (-1,) + tuple(states.shape[2:]))
     # random_goals = tf.random.shuffle(random_goals)
+    # only returned the required number.
     return random_goals[:obs['image_goal'].shape[0]], random_goal_states[:obs['image_goal'].shape[0]]
 
 
 def process_eps_data(eps_data):
+  # convert a list of dict to a dict of lists.
   keys = eps_data[0].keys()
   new_data = {}
   for key in keys:

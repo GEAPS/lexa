@@ -70,6 +70,8 @@ class Dreamer(tools.Module):
     self._train(next(self._dataset))
 
   def __call__(self, obs, reset, state=None, training=True):
+    # it would be important to view the codes of simulate. 
+    # train + action decision.
     step = self._step.numpy().item()
     if self._should_reset(step):
       state = None
@@ -81,6 +83,7 @@ class Dreamer(tools.Module):
           self._config.pretrain if self._should_pretrain()
           else self._config.train_steps)
       for _ in range(steps):
+        # pre-train or train
         _data = next(self._dataset)
         start, feat = self._train(_data)
 
@@ -93,6 +96,7 @@ class Dreamer(tools.Module):
         self._logger.write(fps=True)
 
     if training:
+      # also make actions.
       action, state = self._policy(obs, state, training, reset)
       self._step.assign_add(len(reset))
       self._logger.step = self._config.action_repeat \
@@ -112,18 +116,23 @@ class Dreamer(tools.Module):
 
     if not training:
       goal = self._wm.get_goal(obs, training=False)
+      # figure out what's the offpolicy opt used for?
+      # what's the reward used for if not training?
       if self._config.offpolicy_opt:
         if self._config.offpolicy_use_embed:
+          # use the intermediate representation from the encoder.
           action = self._off_policy_handler.actor(tf.concat([self._wm.encoder(obs), goal], axis = -1))
         else:
+          # stack on the channel dim or the width dim? (I guess it uses the channel dim)
           action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
         reward = tf.zeros((action.shape[0],1), dtype=tf.float32)
       else:
         action = self._task_behavior.act(feat, obs, latent).mode()
-        actor_inp = tf.concat([feat, goal], -1)
+        actor_inp = tf.concat([feat, goal], -1) # actor input
         pad = lambda x : tf.expand_dims(x, 0)
+        # image goal will be replaced by the vector goal.
+        # the agent needs to calculate the reward immediately.
         reward = self._task_behavior._gc_reward(pad(actor_inp), latent, action, pad(obs['image_goal']))
-
     elif self._should_expl(self._step) or should_expl:
       action = self._expl_behavior.act(feat, obs, latent).sample()
     elif self._config.offpolicy_opt:
@@ -132,6 +141,7 @@ class Dreamer(tools.Module):
       else:
         action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
     else:
+      # otherwise, use the greedy behavior.
       action = self._task_behavior.act(feat, obs, latent).sample()
     if self._config.actor_dist == 'onehot_gumble':
       action = tf.cast(
@@ -139,6 +149,8 @@ class Dreamer(tools.Module):
           action.dtype)
     action = self._exploration(action, training)
     state = (latent, action)
+
+    # state has the enough information for the world model to decide the future.
     if training:
       return action, state
     else:
@@ -153,12 +165,12 @@ class Dreamer(tools.Module):
       probs = amount / self._config.num_actions + (1 - amount) * action
       return tools.OneHotDist(probs=probs).sample()
     else:
+      # amout denotes the variance here.
       return tf.clip_by_value(tfd.Normal(action, amount).sample(), -1, 1)
     raise NotImplementedError(self._config.action_noise)
 
   @tf.function
   def _get_imag_data(self, data, start):
-
     goal = self._wm.get_goal(self._wm.preprocess(data), training=True)
     imag_feat, imag_state, imag_action = self._task_behavior._imagine(
       start, self._task_behavior.actor, self._config.imag_horizon, goal=goal)
@@ -166,6 +178,8 @@ class Dreamer(tools.Module):
 
   @tf.function
   def _train(self, data):
+    # the data depends on the dataset.
+    # many different training behaviors
     metrics = {}
     embed, post, feat, kl, mets = self._wm.train(data)
     metrics.update(mets)
@@ -173,9 +187,11 @@ class Dreamer(tools.Module):
     assert not self._config.pred_discount
 
     if self._config.imag_on_policy:
+      # take policy will also be trained
       metrics.update(self._task_behavior.train(start, obs=data)[-1])
 
     if self._config.gc_reward == 'dynamical_distance' and self._config.dd_train_off_policy:
+      # off-policy = dd off policy?
       metrics.update(self._task_behavior.train_dd_off_policy(self._wm.encoder(self._wm.preprocess(data))))
 
     if self._config.expl_behavior != 'greedy':
@@ -225,9 +241,11 @@ def make_env(config, logger, mode, train_eps, eval_eps, use_goal_idx=False, log_
    
     kitchen_env = envs.KitchenEnv(config.action_repeat, use_goal_idx, False)
     robobin_env = envs.RoboBinEnv(config.action_repeat, use_goal_idx, False)
+    # task - where is task defined.
     dmc_envs = list(envs.DmcEnv(task, config.size, config.action_repeat, use_goal_idx, log_per_goal) for task in ['walker_walk', 'quadruped_run'])
 
     env = envs.MultiplexedEnv([kitchen_env, robobin_env] + dmc_envs, config.action_repeat, config.size, use_goal_idx, log_per_goal)
+    # pad actions.
     env = envs.PadActions(env, list(_env.action_space for _env in env.envs))
     env = wrappers.NormalizeActions(env)
 
