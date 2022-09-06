@@ -15,7 +15,7 @@ class RSSM(tools.Module):
       shared=False, discrete=False, act=tf.nn.elu, mean_act='none',
       std_act='softplus', min_std=0.1, cell='keras', feat_mode='full'):
     super().__init__()
-    self._stoch = stoch
+    self._stoch = stoch # the number of distribution.
     self._deter = deter
     self._hidden = hidden
     self._min_std = min_std
@@ -28,7 +28,8 @@ class RSSM(tools.Module):
     self._std_act = std_act
     self._embed = None
     self.feat_mode = feat_mode
-    self.feat_size = stoch + deter
+    self.feat_size = stoch + deter # actually it depends on the feat mode
+    # deter is the output of GRUCell.
     if cell == 'gru':
       self._cell = tfkl.GRUCell(self._deter)
     elif cell == 'gru_layer_norm':
@@ -204,6 +205,23 @@ class GC_Encoder(tools.Module):
     x = tf.reshape(x, [x.shape[0], np.prod(x.shape[1:])])
     shape = tf.concat([tf.shape(gc_obs)[:-3], [x.shape[-1]]], 0)
     return tf.reshape(x, shape)
+  
+class GC_DenseEncoder(tools.Module):
+  def __init__(
+      self, act=tf.nn.leaky_relu, units=(256, 128, 128)):
+    # TODO (lisheng) Check the size of hidden layer of dense head.
+    self._act = act
+    self._units = units
+  
+  def __call__(self, gc_obs):
+    # TODO Hotfix here, image is actually a vector
+    x = tf.reshape(gc_obs, (-1, gc_obs.shape[-1]))
+    for index, n in enumerate(self._units):
+      x = self.get(f'h{index}', tfkl.Dense, n, self._act)(x)
+      # not sure whether I need bn here.
+      # x = self.get(f'h{index}', tfkl.BatchNormalization, axis = -1)(x)
+    shape = tf.concat([tf.shape(gc_obs)[:-1], [x.shape[-1]]], 0)
+    return tf.reshape(x, shape)
 
 class GC_Distance(tools.Module):
 
@@ -260,11 +278,12 @@ class GC_Critic(tools.Module):
 
     return tf.squeeze(self.get(f'hout', tfkl.Dense, 1)(x))
     
-
+# TODO (lisheng) I need a dense encoder ( To be fair, I will use actor of the same architecture.
+# It has a separate encoder.
 class GC_Actor(tools.Module):
 
   def __init__(
-      self, size, act=tf.nn.relu, layers = 10, units = 128, from_images=True):
+      self, size, act=tf.nn.relu, layers = 10, units = 128, from_images=True, env_type='image'):
     self._size = size
     self._layers = layers
     self._num_layers = layers
@@ -272,7 +291,10 @@ class GC_Actor(tools.Module):
     self._act = act
     self.from_images = from_images
     if from_images:
-      self._encoder = GC_Encoder()
+      if env_type == 'image':
+        self._encoder = GC_Encoder()
+      else:
+        self._encoder = GC_DenseEncoder()
 
   def __call__(self, gc_obs):
     x = self._encoder(gc_obs) if self.from_images else gc_obs
@@ -284,6 +306,7 @@ class GC_Actor(tools.Module):
     x = self.get(f'hout', tfkl.Dense, self._size)(x)
     return tfkl.Activation('tanh')(x)
 
+
 class ConvEncoder(tools.Module):
 
   def __init__(
@@ -291,23 +314,41 @@ class ConvEncoder(tools.Module):
     self._act = act
     self._depth = depth
     self._kernels = kernels
-    self.embed_size = depth * 32
+    self.embed_size = depth * 32 # assume the input image size hxw = 64x64
 
   def __call__(self, obs):
     kwargs = dict(strides=2, activation=self._act)
     Conv = tfkl.Conv2D
     x = tf.reshape(obs['image'], (-1,) + tuple(obs['image'].shape[-3:]))
-    x = self.get('h1', Conv, 1 * self._depth, self._kernels[0], **kwargs)(x)
-    x = self.get('h2', Conv, 2 * self._depth, self._kernels[1], **kwargs)(x)
-    x = self.get('h3', Conv, 4 * self._depth, self._kernels[2], **kwargs)(x)
-    x = self.get('h4', Conv, 8 * self._depth, self._kernels[3], **kwargs)(x)
+    x = self.get('h1', Conv, 1 * self._depth, self._kernels[0], **kwargs)(x) # 31
+    x = self.get('h2', Conv, 2 * self._depth, self._kernels[1], **kwargs)(x) # 14
+    x = self.get('h3', Conv, 4 * self._depth, self._kernels[2], **kwargs)(x) # 6
+    x = self.get('h4', Conv, 8 * self._depth, self._kernels[3], **kwargs)(x) # 2
     x = tf.reshape(x, [x.shape[0], np.prod(x.shape[1:])])
     shape = tf.concat([tf.shape(obs['image'])[:-3], [x.shape[-1]]], 0)
     return tf.reshape(x, shape)
+
+class DenseEncoder(tools.Module):
+  def __init__(
+      self, act=tf.nn.relu, units=(256, 128, 128)):
+    # TODO (lisheng) Check the size of hidden layer of dense head.
+    self._act = act
+    self._units = units
+    self.embed_size = self._units[-1]
   
+  def __call__(self, obs):
+    # TODO Hotfix here, image is actually a vector
+    x = obs['image']
+    # reshape - maybe change sequence into flat matrix
+    x = tf.reshape(obs['image'], (-1, obs['image'].shape[-1]))
+    for index, n in enumerate(self._units):
+      x = self.get(f'h{index}', tfkl.Dense, n, self._act)(x)
+    shape = tf.concat([tf.shape(obs['image'])[:-1], [x.shape[-1]]], 0)
+    return tf.reshape(x, shape)
+
 
 class ConvEncoderWithState(tools.Module):
-
+  # 1024 embedding size for images.
   def __init__(
       self, depth=32, act=tf.nn.relu, kernels=(4, 4, 4, 4)):
     self._act = act
@@ -356,6 +397,29 @@ class ConvDecoder(tools.Module):
     if dtype:
       mean = tf.cast(mean, dtype)
     return tfd.Independent(tfd.Normal(mean, 1), len(self._shape))
+
+
+class DenseDecoder(tools.Module):
+  # I'll adopt the inverse order of encoder
+  def __init__(self, shape, act=tf.nn.relu, units=(64, 64, 128)):
+    self._act = act
+    self._units = units
+    assert len(shape) == 1, "the output shape is not valid for DenseDecoder " + str(shape)
+    self._shape = shape
+  
+  def __call__(self, features, dtype=None):
+    # flat version does not need to transform the input to 3D
+    # convert sequences to vectors ( not sure whether there is a sequence format)
+    x = tf.reshape(features, (-1, features.shape[-1]))
+    for index, n in enumerate(self._units):
+      x = self.get(f'h{index}',tfkl.Dense, n, self._act)(x)
+    x = self.get(f'h{len(self._units)}', tfkl.Dense, self._shape[0])(x)
+    shape = tf.concat([tf.shape(features)[:-1], [x.shape[-1]]], 0)
+    mean = tf.reshape(x, shape)
+    if dtype:
+      mean = tf.cast(mean, dtype)
+    return tfd.Independent(tfd.Normal(mean, 1), 1) # the pamrameter is counter forward from the last dim.
+    
 
 
 class DenseHead(tools.Module):
