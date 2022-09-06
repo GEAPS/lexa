@@ -86,6 +86,7 @@ def main(logdir, config):
   eval_envs, eval_eps, train_envs, train_eps, acts = create_envs(config, logger)
 
   prefill = max(0, config.prefill - count_steps(config.traindir))
+  # prefill = 300 # debug
   print(f'Prefill dataset ({prefill} steps).')
   random_agent = lambda o, d, s: ([acts.sample() for _ in d], s)
   tools.simulate(random_agent, train_envs, prefill)
@@ -111,34 +112,45 @@ def main(logdir, config):
     executions = []
     goals = []
     #rews_across_goals = []
-    num_goals = min(100, len(eval_envs[0].get_goals()))
+    # num_goals = min(100, len(eval_envs[0].get_goals())) # 30
+    num_eval = 30
     all_eps_data = []
     num_eval_eps = 1
+    succ_count = 0
     for ep_idx in range(num_eval_eps):
       ep_data_across_goals = []
-      for idx in range(num_goals):
-        eval_envs[0].set_goal_idx(idx)
+      for idx in range(num_eval):
+        #eval_envs[0].set_goal_idx(idx)
+        # randomly set the goals
         eval_policy = functools.partial(agent, training=False)
         sim_out = tools.simulate(eval_policy, eval_envs, episodes=1)
         obs, eps_data = sim_out[4], sim_out[6]
 
         ep_data_across_goals.append(process_eps_data(eps_data))
-        video = eval_envs[0]._convert([t['image'] for t in eval_envs[0]._episode])
-        executions.append(video[None])
-        goals.append(obs[0]['image_goal'][None])
+        if config.first_success:
+          succ_count += np.any(np.array([o['reward'] for o in obs]) == 0.)
+        else:
+          succ_count += (obs[-1]['reward'] == 0.)
+        # no video will be produced
+        # video = eval_envs[0]._convert([t['image'] for t in eval_envs[0]._episode])
+        # executions.append(video[None])
+        # goals.append(obs[0]['image_goal'][None])
 
       all_eps_data.append(ep_data_across_goals)
 
-    if ep_idx == 0:
-      executions = np.concatenate(executions, 0)
-      goals = np.stack(goals, 0)
-      goals = np.repeat(goals, executions.shape[1], 1)
-      gc_video = np.concatenate([goals, executions], -3)
-      agent._logger.video(f'eval_gc_policy', gc_video)
-      logger.write()
+    # if ep_idx == 0:
+    #   executions = np.concatenate(executions, 0)
+    #   goals = np.stack(goals, 0)
+    #   goals = np.repeat(goals, executions.shape[1], 1)
+    #   gc_video = np.concatenate([goals, executions], -3)
+    #   agent._logger.video(f'eval_gc_policy', gc_video)
+    #   logger.write()
 
     with pathlib.Path(logdir / ("distance_func_logs_trained_model/step_"+str(logger.step)+".pkl") ).open('wb') as f:
       pickle.dump(all_eps_data, f)
+
+    with pathlib.Path(logdir / ('Success.csv')).open("a+") as f:
+      f.write(str(logger.step) + ' ' + str(succ_count/num_eval) + '\n')
 
     if config.sync_s3:
       os.system('aws s3 sync '+str(logdir)+ ' s3://goalexp2021/research_code/goalexp_data/'+str(logdir))
@@ -146,6 +158,7 @@ def main(logdir, config):
     if not config.training:
         continue
     print('Start training.')
+    # the state is a tuple
     state = tools.simulate(agent, train_envs, config.eval_every, state=state)
     agent.save(logdir / 'variables.pkl')
   for env in train_envs + eval_envs:
