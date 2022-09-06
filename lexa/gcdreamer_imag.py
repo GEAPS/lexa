@@ -78,12 +78,13 @@ class GCDreamerBehavior(models.ImagBehavior):
     state = _state_rep_dict[self._config.state_rep_for_policy]
     return self.actor(state, goal)
   
-  def train_dd_off_policy(self, off_pol_obs):
+  def train_dd_off_policy(self, off_pol_obs): # called along with train from dreamer.
     obs = tf.transpose(off_pol_obs, (1,0,2))
     with tf.GradientTape() as df_tape:
       dd_loss = self.get_dynamical_distance_loss(obs, corr_factor = 1)
     return self._dd_opt(df_tape, dd_loss, [self.dynamical_distance])
 
+  # TODO (lisheng) Read the original paper to get understandings about these rewards.
   def _gc_reward(self, feat, inp_state=None, action=None, obs=None):
     
     #image embedding as goal
@@ -109,7 +110,7 @@ class GCDreamerBehavior(models.ImagBehavior):
           dd_out = self.dynamical_distance(tf.concat([inp_feat, goal_feat], axis =-1))
 
         elif self._config.dd_inp == 'embed': 
-          inp_embed = self._world_model.heads['embed'](inp_feat).mode()
+          inp_embed = self._world_model.heads['embed'](inp_feat).mode() # directly from the encoder.
           dd_out = self.dynamical_distance(tf.concat([inp_embed, goal_embed], axis =-1))
 
         if self._config.dd_loss == 'regression':
