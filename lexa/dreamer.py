@@ -28,7 +28,7 @@ import wrappers
 import gcdreamer_wm, gcdreamer_imag
 import envs
 
-
+# relabel the goal in the policy. 
 class Dreamer(tools.Module):
 
   def __init__(self, config, logger, dataset):
@@ -52,6 +52,7 @@ class Dreamer(tools.Module):
     config.imag_gradient_mix = (
         lambda x=config.imag_gradient_mix: tools.schedule(x, self._step))
     self._dataset = iter(dataset)
+    # the fundamental world model would convert to flat version.
     if 'gcdreamer' in config.task_behavior:
       self._wm = gcdreamer_wm.GCWorldModel(self._step, config)
     else:
@@ -91,9 +92,10 @@ class Dreamer(tools.Module):
         for name, mean in self._metrics.items():
           self._logger.scalar(name, float(mean.result()))
           mean.reset_states()
-        openl = self._wm.video_pred(next(self._dataset))
-        self._logger.video('train_openl', openl)
-        self._logger.write(fps=True)
+        if self._config.env_type == 'image':
+          openl = self._wm.video_pred(next(self._dataset))
+          self._logger.video('train_openl', openl)
+          self._logger.write(fps=True)
 
     if training:
       # also make actions.
@@ -123,7 +125,7 @@ class Dreamer(tools.Module):
           # use the intermediate representation from the encoder.
           action = self._off_policy_handler.actor(tf.concat([self._wm.encoder(obs), goal], axis = -1))
         else:
-          # stack on the channel dim or the width dim? (I guess it uses the channel dim)
+          # stack on the channel dim.
           action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
         reward = tf.zeros((action.shape[0],1), dtype=tf.float32)
       else:
@@ -132,6 +134,7 @@ class Dreamer(tools.Module):
         pad = lambda x : tf.expand_dims(x, 0)
         # image goal will be replaced by the vector goal.
         # the agent needs to calculate the reward immediately.
+        # only supported by GCDreamerBehaviour.
         reward = self._task_behavior._gc_reward(pad(actor_inp), latent, action, pad(obs['image_goal']))
     elif self._should_expl(self._step) or should_expl:
       action = self._expl_behavior.act(feat, obs, latent).sample()
@@ -186,12 +189,17 @@ class Dreamer(tools.Module):
     start = post
     assert not self._config.pred_discount
 
+
+    # GCSL won't train this part.
+    # If we will train in the RL manner with the environment rewards, we need to change the way of training.
+    # TODO(lisheng) Decode the imagined states.
+    # Calculate rewards based on current states and decoded states.
+    # NOTE The world model is used to provide on-policy rewards like N-steps return. 
     if self._config.imag_on_policy:
-      # take policy will also be trained
+      # task policy will also be trained.
       metrics.update(self._task_behavior.train(start, obs=data)[-1])
 
     if self._config.gc_reward == 'dynamical_distance' and self._config.dd_train_off_policy:
-      # off-policy = dd off policy?
       metrics.update(self._task_behavior.train_dd_off_policy(self._wm.encoder(self._wm.preprocess(data))))
 
     if self._config.expl_behavior != 'greedy':
@@ -224,6 +232,11 @@ def make_dataset(episodes, config):
   return dataset
 
 
+# Four environments to set up
+# 1. AntMaze 2. FPP 3. FSK 4. PointMaze
+# reqired the environment
+# the number of maximum steps would be fixed,
+
 def make_env(config, logger, mode, train_eps, eval_eps, use_goal_idx=False, log_per_goal=False):
   
   if 'dmc' in config.task:
@@ -248,7 +261,42 @@ def make_env(config, logger, mode, train_eps, eval_eps, use_goal_idx=False, log_
     # pad actions.
     env = envs.PadActions(env, list(_env.action_space for _env in env.envs))
     env = wrappers.NormalizeActions(env)
+  elif config.task == 'pointmaze':
+    # TODO(lisheng) Add state normalizer to the policy.
+    # TODO(lisheng) Check any scale to the final actions.
+    env = envs.PointMaze2D(env_max_steps=50, test=use_goal_idx)
 
+  # elif config.task == 'antmaze':
+  #   env = AntMazeEnv(test=use_goal_idx)
+  # elif "stack" or "pickplace" in config.task:
+  #   env_type, external, internal = args.env.split('_')
+  #   if external.lower() == 'obj':
+  #     external = GoalTypes.OBJ
+  #   else:
+  #     raise NotImplementedError(external)
+    
+  #   if internal.lower() == 'obj':
+  #     internal = GoalTypes.OBJ
+  #   else:
+  #     raise NotImplementedError(external)
+    
+  #   n_blocks = 0
+  #   range_min = None # For pickplace
+  #   range_max = None # For pickplace
+
+  #   # hard and other parameters - pp_min_air & pp_max_air - pp_in_air_percentage.
+  #   if 'pickplace' in env_type:
+  #     Env = PickPlaceEnv
+  #     n_blocks = config.pp_in_air_percentage
+  #     range_min = config.pp_min_air # THIS IS THE MINIMUM_AIR
+  #     range_max = config.pp_max_air # THIS IS THE MINIMUM_AIR
+  #   elif 'stack' in env_type:
+  #     Env = StackEnv
+  #     n_blocks = int(env_type.replace('stack', ''))
+    
+  #   env_fn = Env(max_step=50, internal_goal = internal, external_goal = external, mode=0, 
+  #               per_dim_threshold=0, hard=args.hard, distance_threshold=0, n = n_blocks,
+  #               range_min=range_min, range_max=range_max)
   else:
     raise NotImplementedError(config.task)
   env = wrappers.TimeLimit(env, config.time_limit)

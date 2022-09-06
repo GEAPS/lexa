@@ -5,16 +5,32 @@ from tensorflow.keras.mixed_precision import experimental as prec
 import networks
 import tools
 
-
+# Reward is given by gc_reward of task policy.
+# TODO(lisheng) Reinvestigate the reward ( directly using the env reward)
+# offer option to use rewards in the environments.
+# Also, calculate rewards via the env during relabeling.
+# Two steps.
+# I should also use DDL rewards. - DDL is the steps - less is better - but no relationships with GCSL.
+# GCSL at first and others later.
+# where are rewards used?
+# 1. Task behavior. - rewards are based on the 'distance between current state and future state'. (negative) - dense rewards. - but no relationships to GCSL.
+# - gc rewards are sometimes used for evaluation. ( not training. )
+# - gc rewards are sometimes used for training. ( decode + evaluate the rewards via the env)
+# 2. Expl behavior still used ImgBehaviors - but not goal-conditioned. - disagreement as rewards - no needs to be changed.
 class WorldModel(tools.Module):
 
   def __init__(self, step, config):
     self._step = step
     self._config = config
     self._float = prec.global_policy().compute_dtype
-    encoder_cls = dict(vanilla=networks.ConvEncoder,
-                       with_state=networks.ConvEncoderWithState)[config.encoder_cls]
-    self.encoder = encoder_cls(config.cnn_depth, config.act, config.encoder_kernels)
+    if config.env_type == 'image':
+      encoder_cls = dict(vanilla=networks.ConvEncoder,
+                        with_state=networks.ConvEncoderWithState)[config.encoder_cls]
+      self.encoder = encoder_cls(config.cnn_depth, config.act, config.encoder_kernels)
+    else:
+      encoder_cls = dict(vanilla=networks.DenseEncoder)[config.encoder_cls]
+      self.encoder = encoder_cls(config.act, config.encoder_units)
+
     self.embed_size = self.encoder.embed_size
     self.dynamics = networks.RSSM(
         config.dyn_stoch, config.dyn_deter, config.dyn_hidden,
@@ -23,11 +39,17 @@ class WorldModel(tools.Module):
         config.dyn_std_act, config.dyn_min_std, config.dyn_cell, 
         'stoch' if config.gc_input == 'feat_stoch' else 'full' )
     self.heads = {}
-    channels = (1 if config.atari_grayscale else 3)
-    shape = config.size + (channels,)
-    self.heads['image'] = networks.ConvDecoder(
-        config.cnn_depth, config.act, shape, config.decoder_kernels,
-        config.decoder_thin)
+    if config.env_type == 'image':
+      channels = (1 if config.atari_grayscale else 3)
+      shape = config.size + (channels,)
+      self.heads['image'] = networks.ConvDecoder(
+          config.cnn_depth, config.act, shape, config.decoder_kernels,
+          config.decoder_thin)
+    else:
+      shape = config.size
+      self.heads['image'] = networks.DenseDecoder(
+        shape, config.act, config.encoder_units[::-1])
+    
     if config.pred_reward:
       self.heads['reward'] = networks.DenseHead(
           [], config.reward_layers, config.units, config.act)
@@ -56,7 +78,7 @@ class WorldModel(tools.Module):
       kl_scale = tools.schedule(self._config.kl_scale, self._step)
       kl_loss, kl_value = self.dynamics.kl_loss(
           post, prior, kl_balance, kl_free, kl_scale)
-      feat = self.dynamics.get_feat(post)
+      feat = self.dynamics.get_feat(post) # stoch + deter.
       likes = {}
       for name, head in self.heads.items():
         grad_head = (name in self._config.grad_heads)
@@ -81,8 +103,9 @@ class WorldModel(tools.Module):
   def preprocess(self, obs):
     dtype = prec.global_policy().compute_dtype
     obs = obs.copy()
+    # TODO Do we need scaling the input for the vector input?
     for k in obs.keys():
-      if 'image' in k:
+      if 'image' in k and self._config.env_type == 'image':
         obs[k] = tf.cast(obs[k], dtype) / 255.0 - 0.5
     if self._config.clip_rewards[0] == 'd':
       # TODO check that d is followed by a number
@@ -136,6 +159,7 @@ class WorldModel(tools.Module):
     batch_size = embed.shape[0]
     latent = self.dynamics.initial(batch_size)
     dtype = prec.global_policy().compute_dtype
+    # Zero actions would be considered as null actions with zero states.
     action = tf.zeros((batch_size, self._config.num_actions), dtype)
     latent, _ = self.dynamics.obs_step(latent, action, embed, sample)
     return latent
@@ -223,7 +247,7 @@ class ImagBehavior(tools.Module):
     feat = 0 * dynamics.get_feat(start)
     action = policy(feat).mode()
     succ, feats, actions = tools.static_scan(
-        step, tf.range(horizon), (start, feat, action))
+        step, tf.range(horizon), (start, feat, action)) # the outputs include all steps.
     states = {k: tf.concat([
         start[k][None], v[:-1]], 0) for k, v in succ.items()}
     if repeats:
