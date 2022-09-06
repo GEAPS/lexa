@@ -13,7 +13,7 @@ class GCOffPolicyOpt(tools.Module):
   def __init__(self, config):
 
     self._config = config
-    self.actor = networks.GC_Actor(config.num_actions, from_images= not self._config.offpolicy_use_embed)
+    self.actor = networks.GC_Actor(config.num_actions, from_images= not self._config.offpolicy_use_embed, env_type=config.env_type)
   
     kw = dict(wd=config.weight_decay, opt=config.opt)
     self._actor_opt = tools.Optimizer(
