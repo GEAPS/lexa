@@ -260,7 +260,7 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     # promises = [e.step(a, blocking=False) for e, a in zip(envs, action)]
     # obs, _, done = zip(*[p()[:3] for p in promises])
     results = [e.step(a) for e, a in zip(envs, action)]
-    obs, _, done = zip(*[p[:3] for p in results])
+    obs, _, done = zip(*[p[:3] for p in results]) # rewards are excluded from results. - but in the observation.
     obs = list(obs)
     done = np.stack(done)
     episode += int(done.sum())
