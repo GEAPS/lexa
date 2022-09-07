@@ -283,7 +283,7 @@ class GC_Critic(tools.Module):
 class GC_Actor(tools.Module):
 
   def __init__(
-      self, size, act=tf.nn.relu, layers = 10, units = 128, from_images=True, env_type='image'):
+      self, size, act=tf.nn.relu, layers = 10, encoder_units=[256, 128, 128], units = 128, from_images=True, env_type='image'):
     self._size = size
     self._layers = layers
     self._num_layers = layers
@@ -294,7 +294,7 @@ class GC_Actor(tools.Module):
       if env_type == 'image':
         self._encoder = GC_Encoder()
       else:
-        self._encoder = GC_DenseEncoder()
+        self._encoder = GC_DenseEncoder(units=encoder_units)
 
   def __call__(self, gc_obs):
     x = self._encoder(gc_obs) if self.from_images else gc_obs
