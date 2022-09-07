@@ -202,7 +202,8 @@ pointmaze:
   offpolicy_opt: True
   relabelling: 'uniform'
   first_success: True
-  eval_every: 2000
+  eval_every: 15000
+  steps: 1e6
 
 v2:
   dyn_hidden: 600
