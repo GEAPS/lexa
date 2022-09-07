@@ -203,6 +203,8 @@ pointmaze:
   relabelling: 'uniform'
   first_success: True
   eval_every: 15000
+  gc_actor_layers: 1
+  gc_encoder_units: [256, 128, 128]
   steps: 1e6
 
 v2:
