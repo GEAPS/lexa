@@ -242,6 +242,8 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     else:
       action, agent_state, learned_reward = agent_out
       ep_data = {'learned_reward': learned_reward}
+      if agent_state is not None:
+        ep_data["latent_image_goal"] = agent_state[0]["image_goal"]
       if 'state' in obs: ep_data['state'] = obs['state']
   
       for key in obs.keys():
