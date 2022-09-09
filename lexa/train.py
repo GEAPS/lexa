@@ -39,7 +39,7 @@ class GCDreamer(Dreamer):
       if training and self._config.training_goals == 'batch':
         state[0]['image_goal'], state[0]['goal'] = self.sample_replay_goal(obs)
       else:
-        state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) / 255.0 - 0.5
+        state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) # / 255.0 - 0.5
       state[0]['skill'] = self.get_one_time_skill()
 
       # Toggle exploration
