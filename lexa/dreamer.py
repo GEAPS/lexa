@@ -142,7 +142,8 @@ class Dreamer(tools.Module):
       if self._config.offpolicy_use_embed:
         action = self._off_policy_handler.actor(tf.concat([self._wm.encoder(obs), self._wm.encoder({'image': obs['image_goal']})], axis = -1))
       else:
-        action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
+        action = self._off_policy_handler.actor(tf.concat([obs['image'], latent['image_goal']], axis = -1))
+        # action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
     else:
       # otherwise, use the greedy behavior.
       action = self._task_behavior.act(feat, obs, latent).sample()
