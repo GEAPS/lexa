@@ -205,7 +205,9 @@ pointmaze:
   eval_every: 15000
   gc_actor_layers: 1
   gc_encoder_units: [256, 128, 128]
-  steps: 1e6
+  steps: 3e6
+  train_every: 1
+  batch_size: 40
 
 v2:
   dyn_hidden: 600
