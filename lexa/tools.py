@@ -242,8 +242,6 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     else:
       action, agent_state, learned_reward = agent_out
       ep_data = {'learned_reward': learned_reward}
-      if agent_state is not None:
-        ep_data["latent_image_goal"] = agent_state[0]["image_goal"]
       if 'state' in obs: ep_data['state'] = obs['state']
   
       for key in obs.keys():
@@ -257,11 +255,18 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
           for i in range(len(envs))]
     else:
       action = np.array(action)
+    
+    if isinstance(agent_state, tuple):
+      goals = [np.array(agent_state[0]['image_goal'][i])
+          for i in range(len(envs))]
+    else:
+      goals = [None for i in range(len(envs))]
+
     assert len(action) == len(envs)
     # Step envs.
     # promises = [e.step(a, blocking=False) for e, a in zip(envs, action)]
     # obs, _, done = zip(*[p()[:3] for p in promises])
-    results = [e.step(a) for e, a in zip(envs, action)]
+    results = [e.step(a, g) for e, a, g in zip(envs, action, goals)]
     obs, _, done = zip(*[p[:3] for p in results]) # rewards are excluded from results. - but in the observation.
     obs = list(obs)
     done = np.stack(done)

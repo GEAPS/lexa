@@ -75,13 +75,16 @@ class CollectDataset:
   def __getattr__(self, name):
     return getattr(self._env, name)
 
-  def step(self, action):
+  def step(self, action, goal=None):
     obs, reward, done, info = self._env.step(action)
     obs = {k: self._convert(v) for k, v in obs.items()}
     transition = obs.copy()
     transition['action'] = action
     transition['reward'] = reward
     transition['discount'] = info.get('discount', np.array(1 - float(done)))
+    # How to record the actual goal.
+    if goal is not None:
+      transition["latent_goal"] = goal
 
     self._episode.append(transition)
     if done:
@@ -217,8 +220,8 @@ class RewardObs:
     spaces['reward'] = gym.spaces.Box(-np.inf, np.inf, dtype=np.float32)
     return gym.spaces.Dict(spaces)
 
-  def step(self, action):
-    obs, reward, done, info = self._env.step(action)
+  def step(self, action, goal=None):
+    obs, reward, done, info = self._env.step(action, goal)
     obs['reward'] = reward
     return obs, reward, done, info
 
