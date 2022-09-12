@@ -14,7 +14,8 @@ class GCOffPolicyOpt(tools.Module):
 
     self._config = config
     self.actor = networks.GC_Actor(config.num_actions, layers=config.gc_actor_layers, encoder_units = config.gc_encoder_units,
-                                  from_images= not self._config.offpolicy_use_embed, env_type=config.env_type)
+                                  units=config.gc_actor_dense_units, from_images= not self._config.offpolicy_use_embed,
+                                  env_type=config.env_type)
   
     kw = dict(wd=config.weight_decay, opt=config.opt)
     self._actor_opt = tools.Optimizer(

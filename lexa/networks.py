@@ -208,7 +208,7 @@ class GC_Encoder(tools.Module):
   
 class GC_DenseEncoder(tools.Module):
   def __init__(
-      self, act=tf.nn.leaky_relu, units=(256, 128, 128)):
+      self, act=tf.nn.gelu, units=(256, 128, 128)):
     # TODO (lisheng) Check the size of hidden layer of dense head.
     self._act = act
     self._units = units
@@ -219,6 +219,7 @@ class GC_DenseEncoder(tools.Module):
     for index, n in enumerate(self._units):
       x = self.get(f'h{index}', tfkl.Dense, n, self._act)(x)
       # not sure whether I need bn here.
+      x = self.get(f'h{index}_ln', tfkl.LayerNormalization, axis = -1)(x)
       # x = self.get(f'h{index}', tfkl.BatchNormalization, axis = -1)(x)
     shape = tf.concat([tf.shape(gc_obs)[:-1], [x.shape[-1]]], 0)
     return tf.reshape(x, shape)
@@ -299,7 +300,6 @@ class GC_Actor(tools.Module):
   def __call__(self, gc_obs):
     x = self._encoder(gc_obs) if self.from_images else gc_obs
     for index in range(self._layers):
-   
       x = self.get(f'fc{index}', tfkl.Dense, self._units, self._act)(x)
       x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
 
