@@ -210,6 +210,31 @@ pointmaze:
   train_every: 1
   batch_size: 40
 
+pointmaze_small_wm:
+  dyn_hidden: 64
+  dyn_deter: 64
+  dyn_stoch: 16
+  units: 64
+  env_type: 'vector'
+  gc_reward: 'consine'
+  time_limit: 50
+  action_repeat: 1
+  encoder_units: [64, 64, 32] # may be too complex, but let's run it at first
+  size: [2] # very simple environment.
+  imag_on_policy: False
+  gcbc: True
+  offpolicy_opt: True
+  relabelling: 'uniform'
+  first_success: True
+  eval_every: 15000
+  gc_encoder_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_layers: 0
+  gc_actor_dense_units: 128
+  steps: 1e6
+  train_every: 1
+  batch_size: 40
+
+
 v2:
   dyn_hidden: 600
   dyn_deter: 600
