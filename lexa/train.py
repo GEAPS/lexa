@@ -6,15 +6,16 @@ import numpy as np
 import pickle
 import pathlib
 import off_policy
+from density import RawKernelDensity
 from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args
 
 # goal conditioned dreamer
 # what does skill mean?
 class GCDreamer(Dreamer):
-  def __init__(self, config, logger, dataset):
+  def __init__(self, config, logger, dataset, kde=None):
     if config.offpolicy_opt:
       self._off_policy_handler = off_policy.GCOffPolicyOpt(config)
-    super().__init__(config, logger, dataset)
+    super().__init__(config, logger, dataset, kde)
     self._should_expl_ep = tools.EveryNCalls(config.expl_every_ep)
     self.skill_to_use = tf.zeros([0], dtype=tf.float16)
 
@@ -97,7 +98,12 @@ def main(logdir, config):
   print('Simulate agent.')
   train_dataset = make_dataset(train_eps, config)
   eval_dataset = iter(make_dataset(eval_eps, config))
-  agent = GCDreamer(config, logger, train_dataset)
+  if config.env_type == 'vector':
+    kde = RawKernelDensity(logdir, train_eps, config.time_limit, optimize_every=500, samples=10000,
+        kernel='gaussian', bandwidth=0.1, normalize=True)  
+  else:
+    kde = None
+  agent = GCDreamer(config, logger, train_dataset, kde)
   if (logdir / 'variables.pkl').exists():
     agent.load(logdir / 'variables.pkl')
     agent._should_pretrain._once = False
@@ -160,6 +166,7 @@ def main(logdir, config):
     print('Start training.')
     # the state is a tuple
     state = tools.simulate(agent, train_envs, config.eval_every, state=state)
+
     agent.save(logdir / 'variables.pkl')
   for env in train_envs + eval_envs:
     try:

@@ -31,7 +31,7 @@ import envs
 # relabel the goal in the policy. 
 class Dreamer(tools.Module):
 
-  def __init__(self, config, logger, dataset):
+  def __init__(self, config, logger, dataset, kde=None):
     self._config = config
     self._logger = logger
     self._float = prec.global_policy().compute_dtype
@@ -68,6 +68,7 @@ class Dreamer(tools.Module):
         plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
     )[config.expl_behavior]()
     # Train step to initialize variables including optimizer statistics.
+    self.kde = kde
     self._train(next(self._dataset))
 
   def __call__(self, obs, reset, state=None, training=True):
@@ -99,6 +100,9 @@ class Dreamer(tools.Module):
 
     if training:
       # also make actions.
+      if self.kde is not None:
+        self.kde.optimize()
+      
       action, state = self._policy(obs, state, training, reset)
       self._step.assign_add(len(reset))
       self._logger.step = self._config.action_repeat \
