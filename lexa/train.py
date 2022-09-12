@@ -85,6 +85,9 @@ def process_eps_data(eps_data):
 def main(logdir, config):
   logdir, logger = setup_dreamer(config, logdir)
   eval_envs, eval_eps, train_envs, train_eps, acts = create_envs(config, logger)
+  
+  print("setting the random seed to", config.seed)
+  tools.set_global_seeds(config.seed)
 
   prefill = max(0, config.prefill - count_steps(config.traindir))
   # prefill = 300 # debug

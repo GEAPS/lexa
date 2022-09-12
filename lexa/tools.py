@@ -7,8 +7,10 @@ import json
 import pathlib
 import pickle
 import re
+import gym
 import time
 import uuid
+import random
 
 import numpy as np
 import tensorflow as tf
@@ -31,6 +33,25 @@ def random_normal(*args, **kwargs):
   kwargs['seed'] = None
   return _orig_random_normal(*args, **kwargs)
 tf.random.normal = random_normal
+
+def set_global_seeds(seed):
+  """
+    set the seed for python random, tensorflow, numpy and gym spaces
+
+    :param seed: (int) the seed
+    """
+  if tf is not None:
+    if hasattr(tf.random, 'set_seed'):
+      tf.random.set_seed(seed)
+    elif hasattr(tf.compat, 'v1'):
+      tf.compat.v1.set_random_seed(seed)
+    else:
+      tf.set_random_seed(seed)
+  np.random.seed(seed)
+  random.seed(seed)
+  # prng was removed in latest gym version
+  if hasattr(gym.spaces, 'prng'):
+    gym.spaces.prng.seed(seed)
 
 def save_cmd(base_dir):
   if not isinstance(base_dir, pathlib.Path):
