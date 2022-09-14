@@ -130,7 +130,7 @@ class Dreamer(tools.Module):
           action = self._off_policy_handler.actor(tf.concat([self._wm.encoder(obs), goal], axis = -1))
         else:
           # stack on the channel dim.
-          action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
+          action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['goal']], axis = -1))
         reward = tf.zeros((action.shape[0],1), dtype=tf.float32)
       else:
         action = self._task_behavior.act(feat, obs, latent).mode()
@@ -214,7 +214,7 @@ class Dreamer(tools.Module):
     if self._config.gcbc:
       _data = self._wm.preprocess(data)
       obs = self._wm.encoder(self._wm.preprocess(data)) if self._config.offpolicy_use_embed else _data['image']
-      metrics.update(self._off_policy_handler.train_gcbc(obs, _data['action']))
+      metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.training_goals))
 
     for name, value in metrics.items():
       self._metrics[name].update_state(value)
@@ -269,10 +269,10 @@ def make_env(config, logger, mode, train_eps, eval_eps, use_goal_idx=False, log_
   elif config.task == 'pointmaze':
     # TODO(lisheng) Add state normalizer to the policy.
     # TODO(lisheng) Check any scale to the final actions.
-    env = envs.PointMaze2D(env_max_steps=50, test=use_goal_idx)
+    env = envs.PointMaze2D(env_max_steps=config.time_limit, test=use_goal_idx)
 
-  # elif config.task == 'antmaze':
-  #   env = AntMazeEnv(test=use_goal_idx)
+  elif config.task == 'antmaze':
+    env = envs.AntMazeEnv(env_max_steps=config.time_limit, eval=use_goal_idx)
   # elif "stack" or "pickplace" in config.task:
   #   env_type, external, internal = args.env.split('_')
   #   if external.lower() == 'obj':
