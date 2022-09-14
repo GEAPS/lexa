@@ -850,7 +850,7 @@ def get_future_goal_idxs_neg_sampling(num_negs, seq_len, bs, batch_len):
       goal_idxs[i,1] = np.random.choice([j for j in range(bs) if j//batch_len != cur_idxs[i,1]//batch_len])
     return cur_idxs, goal_idxs
 
-def get_data_for_off_policy_training(obs, actions, next_obs, goals, relabel_mode='uniform', \
+def get_data_for_off_policy_training(obs, actions, next_achieved_goals, goals, relabel_mode='uniform', \
                                       relabel_fraction=0.5, geom_p=0.3, feat_to_embed_func=None):
       
     num_batches, seq_len = obs.shape[:2]
@@ -859,37 +859,38 @@ def get_data_for_off_policy_training(obs, actions, next_obs, goals, relabel_mode
     def _reshape(_arr):
       return tf.reshape(_arr, ((num_points,) + tuple(_arr.shape[2:])))
     
-    curr_state, action, next_state, _goals = \
-        _reshape(obs), _reshape(actions), _reshape(next_obs), _reshape(goals)
+    curr_state, action, next_achieved_goals, _goals = \
+        _reshape(obs), _reshape(actions), _reshape(next_achieved_goals), _reshape(goals)
     masks = np.ones(num_points, dtype=np.float16) 
 
     if relabel_fraction > 0:
       # relabelling
       deltas = np.random.geometric(geom_p, size=(num_batches, seq_len))
-      next_obs_idxs_for_relabelling = []
+      next_idxs_for_relabelling = []
       relabel_masks = []
       # sample in the units of sequences
       for i in range(num_batches):
         for j in range(seq_len):
           if relabel_mode == 'uniform':
-            next_obs_idxs_for_relabelling.append(np.random.randint((seq_len*i)+j, seq_len * (i + 1) ))
+            next_idxs_for_relabelling.append(np.random.randint((seq_len*i)+j, seq_len * (i + 1) ))
 
           elif relabel_mode == 'geometric':
-            next_obs_idxs_for_relabelling.append(min((seq_len * i) + j + deltas[i, j] - 1, seq_len * (i + 1) - 1))
-        
-          # not itself.
-          relabel_masks.append(int(next_obs_idxs_for_relabelling[-1] != ((seq_len*i) + j)))
+            next_idxs_for_relabelling.append(min((seq_len * i) + j + deltas[i, j] - 1, seq_len * (i + 1) - 1))
+
+          # the next obs would also target at the same goal.
+          relabel_masks.append(int(next_idxs_for_relabelling[-1] != ((seq_len*i) + j)))
     
-      next_obs_idxs_for_relabelling = np.array(next_obs_idxs_for_relabelling).reshape(-1, 1)
+      next_idxs_for_relabelling = np.array(next_idxs_for_relabelling).reshape(-1, 1)
       relabel_masks = np.array(relabel_masks, dtype=np.float16).reshape(-1,1)
     
       idxs = np.random.permutation(num_points).reshape(-1,1)
       relabel_idxs, non_relabel_idxs = np.split(idxs, (int(relabel_fraction*num_points),), axis = 0)
       # chang the order
-      curr_state, action, next_state = tf.gather_nd(curr_state, idxs), tf.gather_nd(action, idxs),  tf.gather_nd(next_state, idxs)
+      curr_state, action, next_achieved_goals = tf.gather_nd(curr_state, idxs), tf.gather_nd(action, idxs),\
+                                                tf.gather_nd(next_achieved_goals, idxs)
     
       # the first few
-      _relabeled_goals = tf.gather_nd(next_state, next_obs_idxs_for_relabelling[relabel_idxs.flatten()])
+      _relabeled_goals = tf.gather_nd(next_achieved_goals, next_idxs_for_relabelling[relabel_idxs.flatten()])
       if feat_to_embed_func is not None: 
         _relabeled_goals = feat_to_embed_func(_relabeled_goals)
 
@@ -897,6 +898,7 @@ def get_data_for_off_policy_training(obs, actions, next_obs, goals, relabel_mode
       masks = tf.concat([ tf.squeeze(relabel_masks[relabel_idxs.flatten()]), tf.gather_nd(masks, non_relabel_idxs)], axis = 0)
   
     s_t = tf.concat([curr_state, _goals], axis=-1)
-    s_tp1 = tf.concat([next_state, _goals], axis = -1)
-    
-    return s_t, action, s_tp1, masks
+    # s_tp1 = tf.concat([next_state, _goals], axis = -1) # I do not care the s_tp1
+    # masks is also useless in gcsl.
+    # maybe it would be useful for reinforcement learning. It would only requires training
+    return s_t, action #, s_tp1, masks
