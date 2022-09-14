@@ -3,8 +3,6 @@ from sklearn.neighbors import KernelDensity
 from scipy.special import entr
 import pathlib
 
-# TODO (lisheng) Change the way of entropy esitmation.
-# TODO (lisheng) Check the parameters
 class RawKernelDensity(object):
   """
   A KDE-based density model for raw items in the replay buffer (e.g., states/goals).
@@ -38,10 +36,16 @@ class RawKernelDensity(object):
       sample_episode_idxs = np.random.randint(len(all_episodes), size=num_episode_samples)
       episode_sample_idxs = np.random.randint(self.episode_length, size=self.samples)
       goal_samples = []
+      
+      if 'achieved_goal' in self.train_eps[all_episodes[0]].keys():
+        goal_key = 'achieved_goal'
+      else:
+        goal_key = 'image'
+
       for i, e_idx in enumerate(sample_episode_idxs):
         eps_key = all_episodes[e_idx]
         s_idxs = episode_sample_idxs[self.num_samples_per_episode*i: self.num_samples_per_episode*(i+1)]
-        goal_samples.append(self.train_eps[eps_key]['image'][s_idxs]) # TODO (lisheng) Update to achieved goals 
+        goal_samples.append(self.train_eps[eps_key][goal_key][s_idxs]) # TODO (lisheng) Update to achieved goals 
 
       kde_samples = np.concatenate(goal_samples, axis=0)
       # get_samples and only get the image as the dataset.
