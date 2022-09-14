@@ -190,6 +190,8 @@ gcsl :
   relabelling : 'uniform'
 
 pointmaze:
+  gc_input: 'state'
+  training_goals: 'env'
   env_type: 'vector'
   gc_reward: 'consine'
   time_limit: 50
@@ -203,9 +205,28 @@ pointmaze:
   relabelling: 'uniform'
   first_success: True
   eval_every: 15000
-  gc_encoder_units: [512, 512, 512] # keep the same as OMEGA.
-  gc_actor_layers: 0
-  gc_actor_dense_units: 128
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  steps: 1e6
+  train_every: 1
+  batch_size: 40
+
+antmaze:
+  gc_input: 'state'
+  training_goals: 'env'
+  env_type: 'vector'
+  gc_reward: 'consine'
+  time_limit: 500
+  action_repeat: 1
+  encoder_units: [256, 128, 128] # may be too complex, but let's run it at first
+  units: 200
+  size: [30] # very simple environment.
+  imag_on_policy: False
+  gcbc: True
+  offpolicy_opt: True
+  relabelling: 'uniform'
+  first_success: True
+  eval_every: 15000 # need to be updated.
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   steps: 1e6
   train_every: 1
   batch_size: 40
@@ -215,6 +236,8 @@ pointmaze_small_wm:
   dyn_deter: 64
   dyn_stoch: 16
   units: 64
+  gc_input: 'state'
+  training_goals: 'env'
   env_type: 'vector'
   gc_reward: 'consine'
   time_limit: 50
@@ -227,9 +250,7 @@ pointmaze_small_wm:
   relabelling: 'uniform'
   first_success: True
   eval_every: 15000
-  gc_encoder_units: [512, 512, 512] # keep the same as OMEGA.
-  gc_actor_layers: 0
-  gc_actor_dense_units: 128
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   steps: 1e6
   train_every: 1
   batch_size: 40
