@@ -253,7 +253,9 @@ pointmaze_small_wm:
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   steps: 1e6
   train_every: 1
-  batch_size: 40
+  batch_size: 70
+  batch_length: 30
+  disag_units: 64
 
 
 v2:
