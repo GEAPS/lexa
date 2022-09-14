@@ -7,7 +7,7 @@ from tensorflow.keras.mixed_precision import experimental as prec
 
 import tools
 
-
+# TODO (lisheng) Replace the part of extracting goals with real goals.
 class RSSM(tools.Module):
 
   def __init__(
@@ -279,29 +279,26 @@ class GC_Critic(tools.Module):
 
     return tf.squeeze(self.get(f'hout', tfkl.Dense, 1)(x))
     
-# TODO (lisheng) I need a dense encoder ( To be fair, I will use actor of the same architecture.
-# It has a separate encoder.
+# remove the encoder.
 class GC_Actor(tools.Module):
 
   def __init__(
-      self, size, act=tf.nn.relu, layers = 10, encoder_units=[256, 128, 128], units = 128, from_images=True, env_type='image'):
+      self, size, act=tf.nn.gelu, units=[256, 128, 128], from_images=True):
     self._size = size
-    self._layers = layers
-    self._num_layers = layers
-    self._units = units
+    self.units = units
     self._act = act
     self.from_images = from_images
     if from_images:
-      if env_type == 'image':
-        self._encoder = GC_Encoder()
-      else:
-        self._encoder = GC_DenseEncoder(units=encoder_units)
+      # from images denotes the agent need to compress the images via an encoder
+      self._encoder = GC_Encoder()
 
   def __call__(self, gc_obs):
     x = self._encoder(gc_obs) if self.from_images else gc_obs
-    for index in range(self._layers):
-      x = self.get(f'fc{index}', tfkl.Dense, self._units, self._act)(x)
-      x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
+    # currently, it does not support the conv tasks.
+    for index, unit in enumerate(self.units):
+      x = self.get(f'fc{index}', tfkl.Dense, unit, self._act)(x)
+      # x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
+      x = self.get(f'h{index}_ln', tfkl.LayerNormalization, axis = -1)(x)
 
     x = self.get(f'hout', tfkl.Dense, self._size)(x)
     return tfkl.Activation('tanh')(x)
