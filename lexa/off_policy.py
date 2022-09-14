@@ -13,18 +13,26 @@ class GCOffPolicyOpt(tools.Module):
   def __init__(self, config):
 
     self._config = config
-    self.actor = networks.GC_Actor(config.num_actions, layers=config.gc_actor_layers, encoder_units = config.gc_encoder_units,
-                                  units=config.gc_actor_dense_units, from_images= not self._config.offpolicy_use_embed,
-                                  env_type=config.env_type)
+    from_images = not self._config.offpolicy_use_embed and (config.env_type == 'image')
+    self.actor = networks.GC_Actor(config.num_actions, units = config.gc_actor_units, from_images=from_images)
   
     kw = dict(wd=config.weight_decay, opt=config.opt)
     self._actor_opt = tools.Optimizer(
         'actor', config.actor_lr, config.opt_eps, config.actor_grad_clip, **kw)
   
-  def train_gcbc(self, obs, prev_actions):
+  # def train_gcbc(self, obs, prev_actions, goals, achieved_goals, training_goals):
+  def train_gcbc(self, obs, data, training_goals):
     metrics = {}
-    s_t, a_t, _, _ = get_data_for_off_policy_training(obs[:,:-1], prev_actions[:,1:], obs[:,1:], obs[:,1:], 
-                                                                  self._config.relabel_mode, relabel_fraction=1.0)
+    actions = data['action']
+    goals = data['goal']
+    if training_goals == 'env':
+      next_achieved_goals = data['achieved_goal'][:, 1:]
+    else:
+      next_achieved_goals = obs[:, 1:]
+    # In this task, we need to use achieved goals instead.
+    # If we adopt GCRL for the policy optimization, it would also require both next_state and rewards.
+    s_t, a_t = get_data_for_off_policy_training(obs[:,:-1], actions[:,1:], next_achieved_goals, goals[:, :-1],
+                                                self._config.relabel_mode, relabel_fraction=1.0)
     with tf.GradientTape() as tape:
       if self._config.gcbc_distance_weighting:
         raise NotImplementedError
