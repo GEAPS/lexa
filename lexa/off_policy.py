@@ -21,11 +21,11 @@ class GCOffPolicyOpt(tools.Module):
         'actor', config.actor_lr, config.opt_eps, config.actor_grad_clip, **kw)
   
   # def train_gcbc(self, obs, prev_actions, goals, achieved_goals, training_goals):
-  def train_gcbc(self, obs, data, training_goals):
+  def train_gcbc(self, obs, data, env_type):
     metrics = {}
     actions = data['action']
     goals = data['goal']
-    if training_goals == 'env':
+    if env_type == 'vector':
       next_achieved_goals = data['achieved_goal'][:, 1:]
     else:
       next_achieved_goals = obs[:, 1:]

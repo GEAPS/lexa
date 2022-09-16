@@ -214,7 +214,7 @@ class Dreamer(tools.Module):
     if self._config.gcbc:
       _data = self._wm.preprocess(data)
       obs = self._wm.encoder(self._wm.preprocess(data)) if self._config.offpolicy_use_embed else _data['image']
-      metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.training_goals))
+      metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.env_type))
 
     for name, value in metrics.items():
       self._metrics[name].update_state(value)
