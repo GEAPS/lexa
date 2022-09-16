@@ -191,7 +191,6 @@ gcsl :
 
 pointmaze:
   gc_input: 'state'
-  training_goals: 'env'
   env_type: 'vector'
   gc_reward: 'consine'
   time_limit: 50
@@ -212,7 +211,6 @@ pointmaze:
 
 antmaze:
   gc_input: 'state'
-  training_goals: 'env'
   env_type: 'vector'
   gc_reward: 'consine'
   time_limit: 500
@@ -237,7 +235,6 @@ pointmaze_small_wm:
   dyn_stoch: 16
   units: 64
   gc_input: 'state'
-  training_goals: 'env'
   env_type: 'vector'
   gc_reward: 'consine'
   time_limit: 50
