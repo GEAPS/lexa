@@ -9,8 +9,8 @@ import off_policy
 from density import RawKernelDensity
 from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args
 
-# goal conditioned dreamer
-# what does skill mean?
+
+
 class GCDreamer(Dreamer):
   def __init__(self, config, logger, dataset, kde=None):
     if config.offpolicy_opt:
@@ -30,6 +30,7 @@ class GCDreamer(Dreamer):
     if state is None:
       if training and self._config.training_goals == 'batch':
         # TODO this modifies the underlying dict, is that fine?
+        # NOTE this if clause only execute in the beginning
         obs['image_goal'], obs['goal'] = self.sample_replay_goal(obs)
       obs['skill'] = self.get_one_time_skill()
       # The world model adds the observation to the state in this case
@@ -42,7 +43,7 @@ class GCDreamer(Dreamer):
       else:
         state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) # / 255.0 - 0.5
       state[0]['skill'] = self.get_one_time_skill()
-
+      
       # Toggle exploration
       self._should_expl_ep()
 
@@ -53,12 +54,15 @@ class GCDreamer(Dreamer):
 
   def sample_replay_goal(self, obs):
     """ Sample goals from replay buffer """
-    assert self._config.gc_input != 'state'
+    # assert self._config.gc_input != 'state'
     random_batch = next(self._dataset)
     random_batch = self._wm.preprocess(random_batch)
     
-    images = random_batch['image'] # does image only mean imaging.
-    states = random_batch['state']
+    if self._config.env_type == 'vector':
+      images = states = random_batch['achieved_goal']
+    else:
+      images = random_batch['image'] # does image only mean imaging.
+      states = random_batch['state']
     if self._config.labelled_env_multiplexing:
       assert obs['env_idx'].shape[0] == 1
       env_ids = random_batch['env_idx'][:, 0]
@@ -70,7 +74,7 @@ class GCDreamer(Dreamer):
     random_goals = tf.reshape(images, (-1,) + tuple(images.shape[2:]))
     random_goal_states = tf.reshape(states, (-1,) + tuple(states.shape[2:]))
     # random_goals = tf.random.shuffle(random_goals)
-    # only returned the required number.
+    # only returned the first one out of thousands of goals.
     return random_goals[:obs['image_goal'].shape[0]], random_goal_states[:obs['image_goal'].shape[0]]
 
 
