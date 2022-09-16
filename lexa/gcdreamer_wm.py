@@ -85,7 +85,8 @@ class GCWorldModel(models.WorldModel):
 
   def get_goal(self, obs, training=False):
     if self._config.gc_input == 'state':
-      assert self._config.training_goals == 'env'
+      # NOTE the goal can already be modified
+      # assert self._config.training_goals == 'env'
       return obs['goal']
     else:
       if (not training) or self._config.training_goals == 'env':
