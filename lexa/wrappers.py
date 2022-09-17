@@ -85,6 +85,8 @@ class CollectDataset:
     # How to record the actual goal.
     if goal is not None:
       transition["latent_goal"] = goal
+    else:
+      transition["latent_goal"] = transition["goal"]
 
     self._episode.append(transition)
     if done:
@@ -99,6 +101,7 @@ class CollectDataset:
   def reset(self):
     obs = self._env.reset()
     transition = obs.copy()
+    transition["latent_goal"] = transition["goal"]
     transition['action'] = np.zeros(self._env.action_space.shape)
     transition['reward'] = 0.0
     transition['discount'] = 1.0
