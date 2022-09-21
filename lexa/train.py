@@ -8,14 +8,14 @@ import pathlib
 import off_policy
 from density import RawKernelDensity
 from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args
-
+from normalizer import Normalizer, MeanStdNormalizer
 
 
 class GCDreamer(Dreamer):
-  def __init__(self, config, logger, dataset, kde=None):
+  def __init__(self, config, logger, dataset, kde=None, state_normalizer=None, goal_normalizer=None):
     if config.offpolicy_opt:
       self._off_policy_handler = off_policy.GCOffPolicyOpt(config)
-    super().__init__(config, logger, dataset, kde)
+    super().__init__(config, logger, dataset, kde, state_normalizer, goal_normalizer)
     self._should_expl_ep = tools.EveryNCalls(config.expl_every_ep)
     self.skill_to_use = tf.zeros([0], dtype=tf.float16)
 
@@ -29,10 +29,9 @@ class GCDreamer(Dreamer):
     # TODO this would be much more elegant if it was implemented in the training loop (can simulate a single episode)
     if state is None:
       if training and self._config.training_goals == 'batch':
-        # TODO this modifies the underlying dict, is that fine?
-        # NOTE this if clause only execute in the beginning
         obs['image_goal'], obs['goal'] = self.sample_replay_goal(obs)
       obs['skill'] = self.get_one_time_skill()
+
       # The world model adds the observation to the state in this case
 
     if reset.any() and state is not None:
@@ -40,12 +39,19 @@ class GCDreamer(Dreamer):
       # The actor always takes goal from the state, not the observation
       if training and self._config.training_goals == 'batch':
         state[0]['image_goal'], state[0]['goal'] = self.sample_replay_goal(obs)
+        # normalize the goal in the beginning of episodes.
       else:
         state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) # / 255.0 - 0.5
+        state[0]['goal'] = tf.cast(obs['goal'], self._float) # / 255.0 - 0.5
+      state[0]['goal'] = self.goal_normalizer(training, state[0]['goal'])
       state[0]['skill'] = self.get_one_time_skill()
       
       # Toggle exploration
       self._should_expl_ep()
+    
+    obs = obs.copy()
+    obs['goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
+    obs['image'] = self.state_normalizer(training, obs['image'])
 
     # TODO double check everything
     #return super()._policy(obs, state, training, reset, should_expl=self._should_expl_ep.value)
@@ -110,7 +116,9 @@ def main(logdir, config):
         kernel='gaussian', bandwidth=0.1, normalize=True)  
   else:
     kde = None
-  agent = GCDreamer(config, logger, train_dataset, kde)
+  state_normalizer = Normalizer(MeanStdNormalizer())
+  goal_normalizer = Normalizer(MeanStdNormalizer())
+  agent = GCDreamer(config, logger, train_dataset, kde, state_normalizer, goal_normalizer)
   if (logdir / 'variables.pkl').exists():
     agent.load(logdir / 'variables.pkl')
     agent._should_pretrain._once = False

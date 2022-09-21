@@ -31,7 +31,7 @@ import envs
 # relabel the goal in the policy. 
 class Dreamer(tools.Module):
 
-  def __init__(self, config, logger, dataset, kde=None):
+  def __init__(self, config, logger, dataset, kde=None, state_normalizer=None, goal_normalizer=None):
     self._config = config
     self._logger = logger
     self._float = prec.global_policy().compute_dtype
@@ -69,7 +69,26 @@ class Dreamer(tools.Module):
     )[config.expl_behavior]()
     # Train step to initialize variables including optimizer statistics.
     self.kde = kde
-    self._train(next(self._dataset))
+    self.state_normalizer = state_normalizer
+    self.goal_normalizer = goal_normalizer
+    self._train(self.normalize_data(next(self._dataset)))
+  
+  def normalize_data(self, data):
+    _data = data.copy()
+    image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
+    image = self.state_normalizer(False, image)
+    _data['image'] = tf.reshape(image, data['image'].shape)
+
+    goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
+    goal = self.goal_normalizer(False, goal)
+    _data['goal'] = tf.reshape(goal, data['goal'].shape)
+
+    if self._config.env_type == 'vector':
+      achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
+      achieved_goal = self.goal_normalizer(False, achieved_goal)
+      _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
+    
+    return _data
 
   def __call__(self, obs, reset, state=None, training=True):
     # it would be important to view the codes of simulate. 
@@ -84,9 +103,11 @@ class Dreamer(tools.Module):
       steps = (
           self._config.pretrain if self._should_pretrain()
           else self._config.train_steps)
+      # if steps == 1:
+      #   import ipdb; ipdb.set_trace()
       for _ in range(steps):
         # pre-train or train
-        _data = next(self._dataset)
+        _data = self.normalize_data(next(self._dataset))
         start, feat = self._train(_data)
 
       if self._should_log(step):
@@ -98,11 +119,11 @@ class Dreamer(tools.Module):
           self._logger.video('train_openl', openl)
           self._logger.write(fps=True)
 
+
     if training:
       # also make actions.
       if self.kde is not None:
         self.kde.optimize()
-      
       action, state = self._policy(obs, state, training, reset)
       self._step.assign_add(len(reset))
       self._logger.step = self._config.action_repeat \
@@ -115,11 +136,9 @@ class Dreamer(tools.Module):
 
   @tf.function
   def _policy(self, obs, state, training, reset, should_expl=False):
-
     obs = self._wm.preprocess(obs)
     feat, latent = self._wm.get_init_feat(
       obs, state, sample=self._config.collect_dyn_sample and not self._config.eval_state_mean)
-
     if not training:
       goal = self._wm.get_goal(obs, training=False)
       # figure out what's the offpolicy opt used for?
@@ -146,7 +165,7 @@ class Dreamer(tools.Module):
       if self._config.offpolicy_use_embed:
         action = self._off_policy_handler.actor(tf.concat([self._wm.encoder(obs), self._wm.encoder({'image': obs['image_goal']})], axis = -1))
       else:
-        action = self._off_policy_handler.actor(tf.concat([obs['image'], latent['image_goal']], axis = -1))
+        action = self._off_policy_handler.actor(tf.concat([obs['image'], latent['goal']], axis = -1))
         # action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
     else:
       # otherwise, use the greedy behavior.
