@@ -75,18 +75,18 @@ class Dreamer(tools.Module):
   
   def normalize_data(self, data):
     _data = data.copy()
-    image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
-    image = self.state_normalizer(False, image)
-    _data['image'] = tf.reshape(image, data['image'].shape)
+    # image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
+    # image = self.state_normalizer(False, image)
+    # _data['image'] = tf.reshape(image, data['image'].shape)
 
-    goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
-    goal = self.goal_normalizer(False, goal)
-    _data['goal'] = tf.reshape(goal, data['goal'].shape)
+    # goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
+    # goal = self.goal_normalizer(False, goal)
+    # _data['goal'] = tf.reshape(goal, data['goal'].shape)
 
-    if self._config.env_type == 'vector':
-      achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
-      achieved_goal = self.goal_normalizer(False, achieved_goal)
-      _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
+    # if self._config.env_type == 'vector':
+    #   achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
+    #   achieved_goal = self.goal_normalizer(False, achieved_goal)
+    #   _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
     
     return _data
 
