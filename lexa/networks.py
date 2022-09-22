@@ -296,9 +296,10 @@ class GC_Actor(tools.Module):
     x = self._encoder(gc_obs) if self.from_images else gc_obs
     # currently, it does not support the conv tasks.
     for index, unit in enumerate(self.units):
-      x = self.get(f'fc{index}', tfkl.Dense, unit, self._act)(x)
+      x = self.get(f'fc{index}', tfkl.Dense, unit)(x)
       # x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
       x = self.get(f'h{index}_ln', tfkl.LayerNormalization, axis = -1)(x)
+      x = tf.keras.activations.gelu(x)
 
     x = self.get(f'hout', tfkl.Dense, self._size)(x)
     return tfkl.Activation('tanh')(x)
