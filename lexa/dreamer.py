@@ -261,8 +261,9 @@ def make_dataset(episodes, config):
 # reqired the environment
 # the number of maximum steps would be fixed,
 
-def make_env(config, logger, mode, train_eps, eval_eps, use_goal_idx=False, log_per_goal=False):
-  
+
+def make_base_env(config, use_goal_idx=False, log_per_goal=False):
+   
   if 'dmc' in config.task:
     suite, task = config.task.split('_', 1)
     env = envs.DmcEnv(task, config.size, config.action_repeat, use_goal_idx, log_per_goal)
@@ -323,9 +324,21 @@ def make_env(config, logger, mode, train_eps, eval_eps, use_goal_idx=False, log_
   #               range_min=range_min, range_max=range_max)
   else:
     raise NotImplementedError(config.task)
+  
+  return env
+
+def buffer_extension(mode, episode, her_buffer):
+  if mode == 'train' and her_buffer is not None:
+    her_buffer.process_episode(episode)
+
+
+def make_env(config, logger, mode, her_buffer, train_eps, eval_eps, use_goal_idx=False, log_per_goal=False):
+  env = make_base_env(config, use_goal_idx, log_per_goal)
+  # build the buffer on the top of this env.
   env = wrappers.TimeLimit(env, config.time_limit)
   callbacks = [functools.partial(
-      process_episode, config, logger, mode, train_eps, eval_eps)]
+      process_episode, config, logger, mode, train_eps, eval_eps),
+      functools.partial(buffer_extension, mode, her_buffer=her_buffer)]
   env = wrappers.CollectDataset(env, callbacks)
   env = wrappers.RewardObs(env)
   return env
@@ -397,7 +410,7 @@ def setup_dreamer(config, logdir):
   return logdir, logger
 
 
-def create_envs(config, logger):
+def create_envs(config, logger, her_buffer=None):
   print('Create envs.')
   if config.offline_traindir:
     directory = config.offline_traindir.format(**vars(config))
@@ -409,7 +422,7 @@ def create_envs(config, logger):
   else:
     directory = config.evaldir
   eval_eps = tools.load_episodes(directory, limit=1)
-  make = functools.partial(make_env, config, logger, train_eps=train_eps, eval_eps=eval_eps)
+  make = functools.partial(make_env, config, logger, her_buffer=her_buffer, train_eps=train_eps, eval_eps=eval_eps)
   train_envs = [make('train', log_per_goal=True) for _ in range(config.envs)]
   eval_envs = [make('eval', use_goal_idx=True, log_per_goal=config.test_log_per_goal) for _ in range(config.envs)]
   acts = train_envs[0].action_space

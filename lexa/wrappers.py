@@ -82,11 +82,12 @@ class CollectDataset:
     transition['action'] = action
     transition['reward'] = reward
     transition['discount'] = info.get('discount', np.array(1 - float(done)))
+    transition['done'] = done
     # How to record the actual goal.
     if goal is not None:
-      transition["latent_goal"] = goal
+      transition["behavioral"] = goal
     else:
-      transition["latent_goal"] = transition["goal"]
+      transition["behavioral"] = transition["goal"]
 
     self._episode.append(transition)
     if done:
@@ -101,10 +102,11 @@ class CollectDataset:
   def reset(self):
     obs = self._env.reset()
     transition = obs.copy()
-    transition["latent_goal"] = transition["goal"]
+    transition["behavioral"] = transition["goal"]
     transition['action'] = np.zeros(self._env.action_space.shape)
     transition['reward'] = 0.0
     transition['discount'] = 1.0
+    transition['done'] = False
     self._episode = [transition]
     return obs
 
@@ -116,6 +118,8 @@ class CollectDataset:
       dtype = {16: np.int16, 32: np.int32, 64: np.int64}[self._precision]
     elif np.issubdtype(value.dtype, np.uint8):
       dtype = np.uint8
+    elif np.issubdtype(value.dtype, np.bool):
+      dtype = np.bool
     else:
       raise NotImplementedError(value.dtype)
     return value.astype(dtype)
