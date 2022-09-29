@@ -6,8 +6,9 @@ import numpy as np
 import pickle
 import pathlib
 import off_policy
+from replays.online_her_buffer import OnlineHERBuffer
 from density import RawKernelDensity
-from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args
+from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args, make_base_env
 from normalizer import Normalizer, MeanStdNormalizer
 
 
@@ -94,8 +95,14 @@ def process_eps_data(eps_data):
 
 def main(logdir, config):
   logdir, logger = setup_dreamer(config, logdir)
-  eval_envs, eval_eps, train_envs, train_eps, acts = create_envs(config, logger)
-  
+  # create a null environment to obtain the data.
+  # create the buffer.
+  # create the data callback.
+  base_env = make_base_env(config, use_goal_idx=False, log_per_goal=False)
+  state_normalizer = Normalizer(MeanStdNormalizer())
+  goal_normalizer = Normalizer(MeanStdNormalizer())
+  her_buffer = OnlineHERBuffer(base_env, config, state_normalizer, goal_normalizer)
+  eval_envs, eval_eps, train_envs, train_eps, acts = create_envs(config, logger, her_buffer=her_buffer)
   print("setting the random seed to", config.seed)
   tools.set_global_seeds(config.seed)
 
@@ -116,8 +123,8 @@ def main(logdir, config):
         kernel='gaussian', bandwidth=0.1, normalize=True)  
   else:
     kde = None
-  state_normalizer = Normalizer(MeanStdNormalizer())
-  goal_normalizer = Normalizer(MeanStdNormalizer())
+
+
   agent = GCDreamer(config, logger, train_dataset, kde, state_normalizer, goal_normalizer)
   if (logdir / 'variables.pkl').exists():
     agent.load(logdir / 'variables.pkl')
