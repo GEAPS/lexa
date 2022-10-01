@@ -31,7 +31,7 @@ import envs
 # relabel the goal in the policy. 
 class Dreamer(tools.Module):
 
-  def __init__(self, config, logger, dataset, kde=None, state_normalizer=None, goal_normalizer=None):
+  def __init__(self, config, logger, dataset, kde=None, her_buffer=None, state_normalizer=None, goal_normalizer=None):
     self._config = config
     self._logger = logger
     self._float = prec.global_policy().compute_dtype
@@ -69,24 +69,35 @@ class Dreamer(tools.Module):
     )[config.expl_behavior]()
     # Train step to initialize variables including optimizer statistics.
     self.kde = kde
+    self.her_buffer = her_buffer
     self.state_normalizer = state_normalizer
     self.goal_normalizer = goal_normalizer
-    self._train(self.normalize_data(next(self._dataset)))
+    self._train_step()
   
+
+  def _train_step(self):
+    seq_data = self.normalize_data(next(self._dataset))
+    if self.her_buffer is not None:
+      her_data = self.her_buffer.sample(self._config.her_batch_size)
+    self._train(seq_data, her_data)
+  
+  # TODO(lisheng) How to seperate the world model from ?
+  # There are from two different buffers, so it's ok to have them separately;
   def normalize_data(self, data):
     _data = data.copy()
-    # image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
-    # image = self.state_normalizer(False, image)
-    # _data['image'] = tf.reshape(image, data['image'].shape)
+    image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
+    image = self.state_normalizer(False, image)
+    _data['image'] = tf.reshape(image, data['image'].shape)
 
-    # goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
-    # goal = self.goal_normalizer(False, goal)
-    # _data['goal'] = tf.reshape(goal, data['goal'].shape)
+    goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
+    goal = self.goal_normalizer(False, goal)
+    _data['goal'] = tf.reshape(goal, data['goal'].shape)
 
-    # if self._config.env_type == 'vector':
-    #   achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
-    #   achieved_goal = self.goal_normalizer(False, achieved_goal)
-    #   _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
+    if self._config.env_type == 'vector':
+      # used to label gcsl
+      achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
+      achieved_goal = self.goal_normalizer(False, achieved_goal)
+      _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
     
     return _data
 
@@ -107,8 +118,9 @@ class Dreamer(tools.Module):
       #   import ipdb; ipdb.set_trace()
       for _ in range(steps):
         # pre-train or train
-        _data = self.normalize_data(next(self._dataset))
-        start, feat = self._train(_data)
+        self._train_step()
+        # _data = self.normalize_data(next(self._dataset))
+        # start, feat = self._train(_data)
 
       if self._should_log(step):
         for name, mean in self._metrics.items():
@@ -151,6 +163,9 @@ class Dreamer(tools.Module):
           # stack on the channel dim.
           action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['goal']], axis = -1))
         reward = tf.zeros((action.shape[0],1), dtype=tf.float32)
+      elif self._config.ddpg_opt:
+        action = self._ddpg_handler.act(tf.concat([obs['image'], obs['goal']], axis=-1), False)
+        reward = obs['reward']
       else:
         action = self._task_behavior.act(feat, obs, latent).mode()
         actor_inp = tf.concat([feat, goal], -1) # actor input
@@ -167,6 +182,9 @@ class Dreamer(tools.Module):
       else:
         action = self._off_policy_handler.actor(tf.concat([obs['image'], latent['goal']], axis = -1))
         # action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
+    elif self._config.ddpg_opt:
+      # requires noises here.
+      action = self._ddpg_handler.act(tf.concat([obs['image'], latent['goal']], axis=-1), True)
     else:
       # otherwise, use the greedy behavior.
       action = self._task_behavior.act(feat, obs, latent).sample()
@@ -204,7 +222,7 @@ class Dreamer(tools.Module):
     return imag_feat, imag_action, goal
 
   @tf.function
-  def _train(self, data):
+  def _train(self, data, her_data):
     # the data depends on the dataset.
     # many different training behaviors
     metrics = {}
@@ -234,6 +252,10 @@ class Dreamer(tools.Module):
       _data = self._wm.preprocess(data)
       obs = self._wm.encoder(self._wm.preprocess(data)) if self._config.offpolicy_use_embed else _data['image']
       metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.env_type))
+    
+    if self._config.ddpg_opt:
+      _her_data = self._wm.preprocess_her_data(her_data)
+      metrics.update(self._ddpg_handler.train(*_her_data))
 
     for name, value in metrics.items():
       self._metrics[name].update_state(value)
@@ -427,6 +449,8 @@ def create_envs(config, logger, her_buffer=None):
   eval_envs = [make('eval', use_goal_idx=True, log_per_goal=config.test_log_per_goal) for _ in range(config.envs)]
   acts = train_envs[0].action_space
   config.num_actions = acts.n if hasattr(acts, 'n') else acts.shape[0]
+  # only available in my setting.
+  config.action_scale = train_envs[0].action_space.high[0]
   return eval_envs, eval_eps, train_envs, train_eps, acts
 
 
