@@ -207,7 +207,13 @@ pointmaze:
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   steps: 1e6
   train_every: 1
-  batch_size: 40
+  batch_size: 70
+  batch_length: 30
+  disg_units: 200
+  seed: 111
+  actor_lr: 1e-4
+  expl_every_ep: 1
+
 
 antmaze:
   gc_input: 'state'
@@ -230,16 +236,16 @@ antmaze:
   batch_size: 40
 
 pointmaze_small_wm:
-  dyn_hidden: 64
-  dyn_deter: 64
-  dyn_stoch: 16
-  units: 64
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
   gc_input: 'state'
   env_type: 'vector'
   gc_reward: 'consine'
   time_limit: 50
   action_repeat: 1
-  encoder_units: [64, 64, 32] # may be too complex, but let's run it at first
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
   size: [2] # very simple environment.
   imag_on_policy: False
   gcbc: True
@@ -252,7 +258,10 @@ pointmaze_small_wm:
   train_every: 1
   batch_size: 70
   batch_length: 30
-  disag_units: 64
+  disag_units: 200
+  seed: 111
+  actor_lr: 5e-5
+  expl_every_ep: 2
 
 
 v2:
