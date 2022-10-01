@@ -185,8 +185,7 @@ class RSSM(tools.Module):
     return loss, value
 
 class GC_Encoder(tools.Module):
-  def __init__(
-      self, depth=8, act=tf.nn.leaky_relu, kernels=(4, 4, 4, 4)):
+  def __init__(self, depth=8, act=tf.nn.leaky_relu, kernels=(4, 4, 4, 4)):
     self._act = act
     self._depth = depth
     self._kernels = kernels
@@ -258,30 +257,29 @@ class GC_Distance(tools.Module):
       return tf.nn.softmax(out)
 
 
-class GC_Critic(tools.Module):
+# class GC_Critic(tools.Module):
 
-  def __init__(
-      self, act=tf.nn.relu, layers = 4, units = 128):
+#   def __init__(
+#       self, act=tf.nn.relu, layers = 4, units = 128):
 
-    self._layers = layers
-    self._encoder = GC_Encoder()
-    self._num_layers = layers
-    self._units = units
-    self._act = act
+#     self._layers = layers
+#     self._encoder = GC_Encoder()
+#     self._num_layers = layers
+#     self._units = units
+#     self._act = act
 
-  def __call__(self, gc_obs, action):
+#   def __call__(self, gc_obs, action):
    
-    x = tf.concat([self._encoder(gc_obs), action], axis = -1)
-    for index in range(self._layers):
+#     x = tf.concat([self._encoder(gc_obs), action], axis = -1)
+#     for index in range(self._layers):
    
-      x = self.get(f'fc{index}', tfkl.Dense, self._units, self._act)(x)
-      x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
+#       x = self.get(f'fc{index}', tfkl.Dense, self._units, self._act)(x)
+#       x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
 
-    return tf.squeeze(self.get(f'hout', tfkl.Dense, 1)(x))
+#     return tf.squeeze(self.get(f'hout', tfkl.Dense, 1)(x))
     
 # remove the encoder.
 class GC_Actor(tools.Module):
-
   def __init__(
       self, size, act=tf.nn.gelu, units=[256, 128, 128], from_images=True):
     self._size = size
@@ -303,6 +301,32 @@ class GC_Actor(tools.Module):
 
     x = self.get(f'hout', tfkl.Dense, self._size)(x)
     return tfkl.Activation('tanh')(x)
+
+class GC_Critic(tools.Module):
+  # TODO(lisheng) Verify whether layer_init is better.
+  # initializer = tf.keras.initializers.Orthogonal()
+  def __init__(
+      self, act=tf.nn.gelu, units=[256, 128, 128], from_images=True):
+    self.units = units
+    self._act = act
+    self.from_images = from_images
+    if from_images:
+      # from images denotes the agent need to compress the images via an encoder
+      self._encoder = GC_Encoder()
+
+  def __call__(self, gc_obs, action):
+    x = self._encoder(gc_obs) if self.from_images else gc_obs
+    x = tf.concat([x, action], axis = -1)
+
+    # currently, it does not support the conv tasks.
+    for index, unit in enumerate(self.units):
+      x = self.get(f'fc{index}', tfkl.Dense, unit)(x)
+      # x = self.get(f'fc_bn{index}', tfkl.BatchNormalization, axis = -1)(x)
+      x = self.get(f'h{index}_ln', tfkl.LayerNormalization, axis = -1)(x)
+      x = tf.keras.activations.gelu(x)
+
+    x = self.get(f'hout', tfkl.Dense, 1)(x)
+    return x
 
 
 class ConvEncoder(tools.Module):
@@ -416,7 +440,7 @@ class DenseDecoder(tools.Module):
     mean = tf.reshape(x, shape)
     if dtype:
       mean = tf.cast(mean, dtype)
-    return tfd.Independent(tfd.Normal(mean, 1), 1) # the pamrameter is counter forward from the last dim.
+    return tfd.Independent(tfd.Normal(mean, 0.1), 1) # the pamrameter is counter forward from the last dim.
     
 
 
