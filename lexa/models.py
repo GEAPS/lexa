@@ -122,6 +122,17 @@ class WorldModel(tools.Module):
       if value.dtype in (tf.float16, tf.float32, tf.float64):
         obs[key] = tf.cast(value, dtype)
     return obs
+  
+  @tf.function
+  def preprocess_her_data(self, her_data):
+    dtype = prec.global_policy().compute_dtype
+    processed_her_data = []
+    for v in her_data:
+      v = tf.convert_to_tensor(v)
+      if v.dtype in (tf.float16, tf.float32, tf.float64):
+        v = tf.cast(v, dtype)
+      processed_her_data.append(v)
+    return processed_her_data
 
   @tf.function
   def video_pred(self, data):
