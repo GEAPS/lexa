@@ -77,53 +77,16 @@ class OnlineHERBuffer(object):
                   behavioral, desired]
     self.buffer.add_trajectory(*trajectory)
 
-
-
-  def _process_experience(self, exp):
-    done = np.expand_dims(exp.done, 1)  # format for replay buffer
-    reward = np.expand_dims(exp.reward, 1)  # format for replay buffer
-    action = exp.action
-
-    if self.goal_space:
-      state = exp.state['observation']
-      next_state = exp.next_state['observation']
-      previous_achieved = exp.state['achieved_goal']
-      achieved = exp.next_state['achieved_goal']
-      desired = exp.state['desired_goal']
-      if hasattr(self, 'ag_curiosity') and self.ag_curiosity.current_goals is not None:
-        behavioral = self.ag_curiosity.current_goals
-        # recompute online reward
-        reward = self.env.compute_reward(achieved, behavioral, {'s':state, 'ns':next_state}).reshape(-1, 1)
-      else:
-        behavioral = desired
-      for i in range(self.n_envs):
-        self._subbuffers[i].append([
-            state[i], action[i], reward[i], next_state[i], done[i], previous_achieved[i], achieved[i],
-            behavioral[i], desired[i]
-        ])
-    else:
-      state = exp.state
-      next_state = exp.next_state
-      for i in range(self.n_envs):
-        self._subbuffers[i].append(
-            [state[i], action[i], reward[i], next_state[i], done[i]])
-
-    for i in range(self.n_envs):
-      if exp.trajectory_over[i]:
-        trajectory = [np.stack(a) for a in zip(*self._subbuffers[i])]
-        self.buffer.add_trajectory(*trajectory)
-        self._subbuffers[i] = []
-
   def sample(self, batch_size):
     batch_idxs = np.random.randint(self.buffer.size, size=batch_size)
 
     if self.goal_space:
       # not sure whether this part will work.
-      has_config_her = self.config.get('her')
+      has_config_her = self.config.her
       
       if has_config_her:
 
-        if self.config.env_steps > self.config.future_warm_up:
+        if len(self.buffer) > self.config.future_warm_up:
           fut_batch_size, act_batch_size, ach_batch_size, beh_batch_size, real_batch_size = np.random.multinomial(
               batch_size, [self.fut, self.pst, self.act, self.ach, self.beh, self.rel])
         else:
@@ -133,34 +96,35 @@ class OnlineHERBuffer(object):
           np.cumsum([fut_batch_size, act_batch_size, ach_batch_size, beh_batch_size]))
 
           
-        states, actions, rewards, next_states, dones, previous_ags, ags, goals, _, _ =\
+        states, actions, rewards, next_states, dones, previous_ags, ags, goals, _ =\
             self.buffer.sample(real_batch_size, batch_idxs=real_idxs)
 
-        states_fut, actions_fut, _, next_states_fut, dones_fut, previous_ags_fut, ags_fut, _, _, _, goals_fut =\
+        states_fut, actions_fut, _, next_states_fut, dones_fut, previous_ags_fut, ags_fut, _, _, goals_fut =\
             self.buffer.sample_future(fut_batch_size, batch_idxs=fut_idxs)
 
         # Sample the actual batch
-        states_act, actions_act, _, next_states_act, dones_act, previous_ags_act, ags_act, _, _, _, goals_act =\
+        states_act, actions_act, _, next_states_act, dones_act, previous_ags_act, ags_act, _, _, goals_act =\
           self.buffer.sample_from_goal_buffer('dg', act_batch_size, batch_idxs=act_idxs)
 
         # Sample the achieved batch
-        states_ach, actions_ach, _, next_states_ach, dones_ach, previous_ags_ach, ags_ach, _, _, _, goals_ach =\
+        states_ach, actions_ach, _, next_states_ach, dones_ach, previous_ags_ach, ags_ach, _, _, goals_ach =\
           self.buffer.sample_from_goal_buffer('ag', ach_batch_size, batch_idxs=ach_idxs)
 
         # Sample the behavioral batch
-        states_beh, actions_beh, _, next_states_beh, dones_beh, previous_ags_beh, ags_beh, _, _, _, goals_beh =\
+        states_beh, actions_beh, _, next_states_beh, dones_beh, previous_ags_beh, ags_beh, _, _, goals_beh =\
           self.buffer.sample_from_goal_buffer('bg', beh_batch_size, batch_idxs=beh_idxs)
 
         # Concatenate the five
         states = np.concatenate([states, states_fut, states_act, states_ach, states_beh], 0)
         actions = np.concatenate([actions, actions_fut, actions_act, actions_ach, actions_beh], 0)
+        ags = np.concatenate([ags, ags_fut, ags_act, ags_ach, ags_beh], 0)
         goals = np.concatenate([goals, goals_fut, goals_act, goals_ach, goals_beh], 0)
         next_states = np.concatenate([next_states, next_states_fut, next_states_act, next_states_ach,\
            next_states_beh], 0)
 
         rewards = self.env.compute_reward(ags, goals, {'s':states, 'ns':next_states}).reshape(-1, 1).astype(np.float32)
 
-        if self.config.first_visit_succ:
+        if self.config.first_visit_success:
           dones = np.round(rewards + 1.)
         else:
           dones = np.zeros_like(rewards, dtype=np.float32)
@@ -179,7 +143,7 @@ class OnlineHERBuffer(object):
       states = np.concatenate((states, goals), -1)
       next_states = np.concatenate((next_states, goals), -1)
 
-      gammas = self.config.gamma * (1.-dones)
+      gammas = self.config.discount * (1.-dones)
 
     else:
       raise ValueError("The env does not have goal space.")
@@ -232,9 +196,7 @@ def parse_hindsight_mode(hindsight_mode : str):
     ach = float(ach) * non_hindsight_frac
     beh = 0.
   elif 'rfaa_' in hindsight_mode:
-    _, real, fut, act, ach = hindsight_mode.split('_')
-    denom = (float(real) + float(fut) + float(act) + float(ach))
-    rel = float(real) / denom
+    _, real, fut, act, ach = hindsight_size
     fut = float(fut) / denom
     act = float(act) / denom
     ach = float(ach) / denom
