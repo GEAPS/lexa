@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import pathlib
 import off_policy
+import ddpg_off_policy
 from replays.online_her_buffer import OnlineHERBuffer
 from density import RawKernelDensity
 from dreamer import Dreamer, setup_dreamer, create_envs, count_steps, make_dataset, parse_dreamer_args, make_base_env
@@ -13,10 +14,12 @@ from normalizer import Normalizer, MeanStdNormalizer
 
 
 class GCDreamer(Dreamer):
-  def __init__(self, config, logger, dataset, kde=None, state_normalizer=None, goal_normalizer=None):
+  def __init__(self, config, logger, dataset, kde=None, her_buffer=None, state_normalizer=None, goal_normalizer=None):
     if config.offpolicy_opt:
       self._off_policy_handler = off_policy.GCOffPolicyOpt(config)
-    super().__init__(config, logger, dataset, kde, state_normalizer, goal_normalizer)
+    if config.ddpg_opt:
+      self._ddpg_handler = ddpg_off_policy.DDPGOpt(config) # Thus the action size sho
+    super().__init__(config, logger, dataset,  kde, her_buffer, state_normalizer, goal_normalizer)
     self._should_expl_ep = tools.EveryNCalls(config.expl_every_ep)
     self.skill_to_use = tf.zeros([0], dtype=tf.float16)
 
@@ -25,6 +28,7 @@ class GCDreamer(Dreamer):
     self.skill_to_use = tf.zeros([0], dtype=tf.float16)
     return skill
 
+  # I'll apply normalization to both world model and ddpg-policy.
   def _policy(self, obs, state, training, reset):
     # Choose the goal for the next episode
     # TODO this would be much more elegant if it was implemented in the training loop (can simulate a single episode)
@@ -44,19 +48,16 @@ class GCDreamer(Dreamer):
       else:
         state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) # / 255.0 - 0.5
         state[0]['goal'] = tf.cast(obs['goal'], self._float) # / 255.0 - 0.5
-      # state[0]['goal'] = self.goal_normalizer(training, state[0]['goal'])
+      state[0]['goal'] = self.goal_normalizer(training, state[0]['goal'])
       state[0]['skill'] = self.get_one_time_skill()
       
       # Toggle exploration
       self._should_expl_ep()
     
-    # obs = obs.copy()
-    # obs['goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
-    # obs['image'] = self.state_normalizer(training, obs['image'])
+    obs = obs.copy()
+    obs['goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
+    obs['image'] = self.state_normalizer(training, obs['image'])
 
-    # TODO double check everything
-    #return super()._policy(obs, state, training, reset, should_expl=self._should_expl_ep.value)
-    #if not training:
     return super()._policy(obs, state, training, reset, should_expl=self._should_expl_ep.value)
 
   def sample_replay_goal(self, obs):
@@ -125,7 +126,7 @@ def main(logdir, config):
     kde = None
 
 
-  agent = GCDreamer(config, logger, train_dataset, kde, state_normalizer, goal_normalizer)
+  agent = GCDreamer(config, logger, train_dataset, kde, her_buffer, state_normalizer, goal_normalizer)
   if (logdir / 'variables.pkl').exists():
     agent.load(logdir / 'variables.pkl')
     agent._should_pretrain._once = False
@@ -155,7 +156,7 @@ def main(logdir, config):
         obs, eps_data = sim_out[4], sim_out[6]
 
         ep_data_across_goals.append(process_eps_data(eps_data))
-        if config.first_success:
+        if config.first_visit_success:
           succ_count += np.any(np.array([o['reward'] for o in obs]) == 0.)
         else:
           succ_count += (obs[-1]['reward'] == 0.)
