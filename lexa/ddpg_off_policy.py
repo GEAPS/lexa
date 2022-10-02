@@ -80,9 +80,9 @@ class DDPGOpt(tools.Module):
     # tau = 1 is completely update.
     self.steps += 1
     if self.steps % self._config.target_network_update_freq == 0:
-      common.soft_variable_update(self.critic.variables, self.critic_target.variables,
+      common.soft_variables_update(self.critic.variables, self.critic_target.variables,
                                   self._config.target_network_update_frac)
-      common.soft_variable_update(self.critic.variables, self.critic_target.variables,
+      common.soft_variables_update(self.critic.variables, self.critic_target.variables,
                                   self._config.target_network_update_frac)
    
     # metrics.update(self._actor_opt(tape, loss, self.actor))
