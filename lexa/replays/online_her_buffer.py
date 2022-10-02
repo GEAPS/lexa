@@ -88,7 +88,7 @@ class OnlineHERBuffer(object):
 
         if len(self.buffer) > self.config.future_warm_up:
           fut_batch_size, act_batch_size, ach_batch_size, beh_batch_size, real_batch_size = np.random.multinomial(
-              batch_size, [self.fut, self.pst, self.act, self.ach, self.beh, self.rel])
+              batch_size, [self.fut, self.act, self.ach, self.beh, self.rel])
         else:
           fut_batch_size, act_batch_size, ach_batch_size, beh_batch_size, real_batch_size  = batch_size, 0, 0, 0, 0
 
