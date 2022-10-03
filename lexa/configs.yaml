@@ -282,7 +282,7 @@ pointmaze_ddpg:
   gc_actor_lr: 1e-3
   gc_critic_lr: 1e-3
   steps: 1e6
-  batch_size: 50
+  batch_size: 70
   batch_length: 30
   disag_units: 200
   her: "rfaab_1_4_3_1_1"
