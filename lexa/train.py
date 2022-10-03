@@ -79,9 +79,15 @@ class GCDreamer(Dreamer):
     
     random_goals = tf.reshape(images, (-1,) + tuple(images.shape[2:]))
     random_goal_states = tf.reshape(states, (-1,) + tuple(states.shape[2:]))
+
+    n = random_goals.shape[0]
+    indices = tf.random.uniform([obs['image_goal'].shape[0]], minval=0, maxval=n, dtype=tf.dtypes.int32)
+    images = tf.gather(random_goals, indices)
+    states = tf.gather(random_goal_states, indices)
+    return images, states
     # random_goals = tf.random.shuffle(random_goals)
     # only returned the first one out of thousands of goals.
-    return random_goals[:obs['image_goal'].shape[0]], random_goal_states[:obs['image_goal'].shape[0]]
+    # return random_goals[:obs['image_goal'].shape[0]], random_goal_states[:obs['image_goal'].shape[0]]
 
 
 def process_eps_data(eps_data):
