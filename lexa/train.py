@@ -81,9 +81,14 @@ class GCDreamer(Dreamer):
     
     random_goals = tf.reshape(images, (-1,) + tuple(images.shape[2:]))
     random_goal_states = tf.reshape(states, (-1,) + tuple(states.shape[2:]))
+    n = random_goals.shape[0]
+    indices = tf.random.uniform([obs['image_goal'].shape[0]], minval=0, maxval=n, dtype=tf.dtypes.int32)
+    images = tf.gather(random_goals, indices)
+    states = tf.gather(random_goal_states, indices)
+    return images, states
     # random_goals = tf.random.shuffle(random_goals)
     # only returned the first one out of thousands of goals.
-    return random_goals[:obs['image_goal'].shape[0]], random_goal_states[:obs['image_goal'].shape[0]]
+    # return random_goals[:obs['image_goal'].shape[0]], random_goal_states[:obs['image_goal'].shape[0]]
 
 
 def process_eps_data(eps_data):
@@ -134,7 +139,6 @@ def main(logdir, config):
   pathlib.Path(logdir / "distance_func_logs_trained_model").mkdir(parents=True, exist_ok = True)
 
   state = None
-  assert len(eval_envs) == 1
   while agent._step.numpy().item() < config.steps:
     logger.write()
     print('Start gc evaluation.')
@@ -148,11 +152,11 @@ def main(logdir, config):
     succ_count = 0
     for ep_idx in range(num_eval_eps):
       ep_data_across_goals = []
-      for idx in range(num_eval):
+      for idx in range(0, num_eval, config.envs):
         #eval_envs[0].set_goal_idx(idx)
         # randomly set the goals
         eval_policy = functools.partial(agent, training=False)
-        sim_out = tools.simulate(eval_policy, eval_envs, episodes=1)
+        sim_out = tools.simulate(eval_policy, eval_envs, episodes=config.envs)
         obs, eps_data = sim_out[4], sim_out[6]
 
         ep_data_across_goals.append(process_eps_data(eps_data))
