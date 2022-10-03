@@ -7,6 +7,7 @@ import resource
 import sys
 import warnings
 import pickle
+import time
 
 import numpy as np
 import ruamel.yaml as yaml
@@ -72,14 +73,20 @@ class Dreamer(tools.Module):
     self.her_buffer = her_buffer
     self.state_normalizer = state_normalizer
     self.goal_normalizer = goal_normalizer
+    self.train_policy_steps = 1 # initialize as 1 in pre-training
     self._train_step()
-  
 
   def _train_step(self):
     seq_data = self.normalize_data(next(self._dataset))
+    self._train(seq_data)
+
+
     if self.her_buffer is not None:
-      her_data = self.her_buffer.sample(self._config.her_batch_size)
-    self._train(seq_data, her_data)
+      for i in range(self.train_policy_steps):
+          her_data = self.her_buffer.sample(self._config.her_batch_size)
+          self._train_ddpg(her_data)
+          if self.kde is not None:
+            self.kde.optimize()
   
   # TODO(lisheng) How to seperate the world model from ?
   # There are from two different buffers, so it's ok to have them separately;
@@ -111,9 +118,15 @@ class Dreamer(tools.Module):
       mask = tf.cast(1 - reset, self._float)[:, None]
       state = tf.nest.map_structure(lambda x: x * mask, state)
     if training and self._should_train(step):
-      steps = (
-          self._config.pretrain if self._should_pretrain()
-          else self._config.train_steps)
+      if self._should_pretrain():
+        steps = self._config.pretrain
+        self.train_policy_steps = 1
+        print("pretrain!!!")
+      else:
+        steps = self._config.train_steps
+        self.train_policy_steps = self._config.train_policy_steps
+
+      
       # if steps == 1:
       #   import ipdb; ipdb.set_trace()
       for _ in range(steps):
@@ -134,8 +147,6 @@ class Dreamer(tools.Module):
 
     if training:
       # also make actions.
-      if self.kde is not None:
-        self.kde.optimize()
       action, state = self._policy(obs, state, training, reset)
       self._step.assign_add(len(reset))
       self._logger.step = self._config.action_repeat \
@@ -222,7 +233,7 @@ class Dreamer(tools.Module):
     return imag_feat, imag_action, goal
 
   @tf.function
-  def _train(self, data, her_data):
+  def _train(self, data):
     # the data depends on the dataset.
     # many different training behaviors
     metrics = {}
@@ -252,15 +263,21 @@ class Dreamer(tools.Module):
       _data = self._wm.preprocess(data)
       obs = self._wm.encoder(self._wm.preprocess(data)) if self._config.offpolicy_use_embed else _data['image']
       metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.env_type))
-    
-    if self._config.ddpg_opt:
-      _her_data = self._wm.preprocess_her_data(her_data)
-      metrics.update(self._ddpg_handler.train(*_her_data))
 
     for name, value in metrics.items():
       self._metrics[name].update_state(value)
 
     return start, feat
+  
+  def _train_ddpg(self, her_data):
+    metrics = {}
+    if self._config.ddpg_opt:
+      _her_data = self._wm.preprocess_her_data(her_data)
+      metrics.update(self._ddpg_handler.train(*_her_data))
+    
+    for name, value in metrics.items():
+      self._metrics[name].update_state(value)
+    
 
 def count_steps(folder):
   return sum(int(str(n).split('-')[-1][:-4]) - 1 for n in folder.glob('*.npz'))
