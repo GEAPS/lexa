@@ -295,9 +295,9 @@ pointmaze_ddpg:
   target_network_update_frac: 0.05
   epsilon: 0.1
   expl_every_ep: 2
-  envs: 10
+  envs: 1
   train_every: 1
-  train_steps: 10
+  train_steps: 1
   train_policy_steps: 1
 
 
