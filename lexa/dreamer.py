@@ -192,7 +192,7 @@ class Dreamer(tools.Module):
         # action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
     elif self._config.ddpg_opt:
       # requires noises here.
-      action = self._ddpg_handler.act(tf.concat([obs['normalized_goal'], latent['normalized_goal']], axis=-1), True)
+      action = self._ddpg_handler.act(tf.concat([obs['normalized_image'], latent['normalized_goal']], axis=-1), True)
     else:
       # otherwise, use the greedy behavior.
       action = self._task_behavior.act(feat, obs, latent).sample()

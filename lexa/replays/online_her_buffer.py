@@ -139,7 +139,7 @@ class OnlineHERBuffer(object):
         states = self.state_normalizer(False, states).astype(np.float32)
         next_states = self.state_normalizer(False, next_states).astype(np.float32)
       if self.goal_normalizer is not None:
-        goals = self.state_normalizer(False, goals).astype(np.float32)
+        goals = self.goal_normalizer(False, goals).astype(np.float32)
       states = np.concatenate((states, goals), -1)
       next_states = np.concatenate((next_states, goals), -1)
 
@@ -196,7 +196,7 @@ def parse_hindsight_mode(hindsight_mode : str):
     ach = float(ach) * non_hindsight_frac
     beh = 0.
   elif 'rfaa_' in hindsight_mode:
-    _, real, fut, act, ach = hindsight_size
+    _, real, fut, act, ach = hindsight_mode.split('_')
     fut = float(fut) / denom
     act = float(act) / denom
     ach = float(ach) / denom
