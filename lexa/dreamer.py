@@ -7,7 +7,6 @@ import resource
 import sys
 import warnings
 import pickle
-import time
 
 import numpy as np
 import ruamel.yaml as yaml
@@ -92,20 +91,19 @@ class Dreamer(tools.Module):
   # There are from two different buffers, so it's ok to have them separately;
   def normalize_data(self, data):
     _data = data.copy()
-    image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
-    image = self.state_normalizer(False, image)
-    _data['image'] = tf.reshape(image, data['image'].shape)
+    # image = tf.reshape(_data['image'], (-1, *data['image'].shape[2:]))
+    # image = self.state_normalizer(False, image)
+    # _data['image'] = tf.reshape(image, data['image'].shape)
 
-    goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
-    goal = self.goal_normalizer(False, goal)
-    _data['goal'] = tf.reshape(goal, data['goal'].shape)
+    # goal = tf.reshape(_data['goal'], (-1, *data['goal'].shape[2:]))
+    # goal = self.goal_normalizer(False, goal)
+    # _data['goal'] = tf.reshape(goal, data['goal'].shape)
 
-    if self._config.env_type == 'vector':
-      # used to label gcsl
-      achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
-      achieved_goal = self.goal_normalizer(False, achieved_goal)
-      _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
-    
+    # if self._config.env_type == 'vector':
+    #   # used to label gcsl
+    #   achieved_goal = tf.reshape(_data['achieved_goal'], (-1, *data['achieved_goal'].shape[2:]))
+    #   achieved_goal = self.goal_normalizer(False, achieved_goal)
+    #   _data['achieved_goal'] = tf.reshape(achieved_goal, data['achieved_goal'].shape)
     return _data
 
   def __call__(self, obs, reset, state=None, training=True):
@@ -121,7 +119,6 @@ class Dreamer(tools.Module):
       if self._should_pretrain():
         steps = self._config.pretrain
         self.train_policy_steps = 1
-        print("pretrain!!!")
       else:
         steps = self._config.train_steps
         self.train_policy_steps = self._config.train_policy_steps
@@ -175,7 +172,7 @@ class Dreamer(tools.Module):
           action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['goal']], axis = -1))
         reward = tf.zeros((action.shape[0],1), dtype=tf.float32)
       elif self._config.ddpg_opt:
-        action = self._ddpg_handler.act(tf.concat([obs['image'], obs['goal']], axis=-1), False)
+        action = self._ddpg_handler.act(tf.concat([obs['normalized_image'], obs['normalized_goal']], axis=-1), False)
         reward = obs['reward']
       else:
         action = self._task_behavior.act(feat, obs, latent).mode()
@@ -195,7 +192,7 @@ class Dreamer(tools.Module):
         # action = self._off_policy_handler.actor(tf.concat([obs['image'], obs['image_goal']], axis = -1))
     elif self._config.ddpg_opt:
       # requires noises here.
-      action = self._ddpg_handler.act(tf.concat([obs['image'], latent['goal']], axis=-1), True)
+      action = self._ddpg_handler.act(tf.concat([obs['normalized_goal'], latent['normalized_goal']], axis=-1), True)
     else:
       # otherwise, use the greedy behavior.
       action = self._task_behavior.act(feat, obs, latent).sample()
