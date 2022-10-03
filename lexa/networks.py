@@ -416,7 +416,7 @@ class DenseDecoder(tools.Module):
     mean = tf.reshape(x, shape)
     if dtype:
       mean = tf.cast(mean, dtype)
-    return tfd.Independent(tfd.Normal(mean, 1), 1) # the pamrameter is counter forward from the last dim.
+    return tfd.Independent(tfd.Normal(mean, 0.1), 1) # the pamrameter is counter forward from the last dim.
     
 
 
