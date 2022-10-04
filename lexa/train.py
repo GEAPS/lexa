@@ -17,7 +17,8 @@ class GCDreamer(Dreamer):
   def __init__(self, config, logger, dataset, kde=None, her_buffer=None, state_normalizer=None, goal_normalizer=None):
     if config.offpolicy_opt:
       self._off_policy_handler = off_policy.GCOffPolicyOpt(config)
-    if config.ddpg_opt:
+    elif config.ddpg_opt:
+      assert not config.offpolicy_opt, "they can not be True in the same time"
       self._ddpg_handler = ddpg_off_policy.DDPGOpt(config) # Thus the action size sho
     super().__init__(config, logger, dataset,  kde, her_buffer, state_normalizer, goal_normalizer)
     self._should_expl_ep = tools.EveryNCalls(config.expl_every_ep)
@@ -48,15 +49,23 @@ class GCDreamer(Dreamer):
       else:
         state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) # / 255.0 - 0.5
         state[0]['goal'] = tf.cast(obs['goal'], self._float) # / 255.0 - 0.5
-      state[0]['normalized_goal'] = self.goal_normalizer(training, state[0]['goal'])
+      if self._config.ddpg_opt:
+        state[0]['normalized_goal'] = self.goal_normalizer(training, state[0]['goal'])
+      else:
+        state[0]['normalized_goal'] = state[0]['goal']
       state[0]['skill'] = self.get_one_time_skill()
       
       # Toggle exploration
       self._should_expl_ep()
     
     obs = obs.copy()
-    obs['normalized_goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
-    obs['normalized_image'] = self.state_normalizer(training, obs['image'])
+    if self._config.ddpg_opt:
+      obs['normalized_goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
+      obs['normalized_image'] = self.state_normalizer(training, obs['image'])
+    else:
+      obs['normalized_goal'] = obs['goal']
+      obs['normalized_image'] = obs['image']
+
 
     return super()._policy(obs, state, training, reset, should_expl=self._should_expl_ep.value)
 
@@ -105,9 +114,12 @@ def main(logdir, config):
   # create the buffer.
   # create the data callback.
   base_env = make_base_env(config, use_goal_idx=False, log_per_goal=False)
-  state_normalizer = Normalizer(MeanStdNormalizer())
-  goal_normalizer = Normalizer(MeanStdNormalizer())
-  her_buffer = OnlineHERBuffer(base_env, config, state_normalizer, goal_normalizer)
+  if config.ddpg_opt:
+    state_normalizer = Normalizer(MeanStdNormalizer())
+    goal_normalizer = Normalizer(MeanStdNormalizer())
+    her_buffer = OnlineHERBuffer(base_env, config, state_normalizer, goal_normalizer)
+  else:
+    state_normalizer = goal_normalizer = her_buffer = None
   eval_envs, eval_eps, train_envs, train_eps, acts = create_envs(config, logger, her_buffer=her_buffer)
   print("setting the random seed to", config.seed)
   tools.set_global_seeds(config.seed)
