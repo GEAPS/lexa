@@ -39,12 +39,14 @@ class DDPGOpt(tools.Module):
   def act(self, inputs, training=False):
     # use the same epsilon greedy methods.
     # I found mrl didn't use noises like gaussian noises.
-    if training and tf.random.uniform(shape=[], maxval=1.) < self.epsilon:
+    actions = self.actor(inputs)
+    if training: #and tf.random.uniform(shape=[], maxval=1.) < self.epsilon:
       dtype = inputs.dtype
-      actions = tf.random.uniform(shape=inputs.shape[:-1] + (self.num_actions,), minval=-1., maxval=1., dtype=dtype) * self.action_scale
-    else:
-      actions = self.actor(inputs) * self.action_scale
-    return actions
+      noises = tf.random.normal(actions.shape, stddev=0.1, dtype=dtype)
+      actions = actions + noises
+      # actions = tf.random.uniform(shape=inputs.shape[:-1] + (self.num_actions,), minval=-1., maxval=1., dtype=dtype) * self.action_scale
+    # else:
+    return actions  * self.action_scale
 
   
   # def train_gcbc(self, obs, prev_actions, goals, achieved_goals, training_goals):
@@ -82,7 +84,7 @@ class DDPGOpt(tools.Module):
     if self.steps % self._config.target_network_update_freq == 0:
       common.soft_variables_update(self.critic.variables, self.critic_target.variables,
                                   self._config.target_network_update_frac)
-      common.soft_variables_update(self.critic.variables, self.critic_target.variables,
+      common.soft_variables_update(self.actor.variables, self.actor_target.variables,
                                   self._config.target_network_update_frac)
    
     # metrics.update(self._actor_opt(tape, loss, self.actor))

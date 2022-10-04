@@ -72,7 +72,7 @@ class Dreamer(tools.Module):
     self.her_buffer = her_buffer
     self.state_normalizer = state_normalizer
     self.goal_normalizer = goal_normalizer
-    self.train_policy_steps = 1 # initialize as 1 in pre-training
+    self.train_ddpg_steps = 1 # initialize as 1 in pre-training
     self._train_step()
 
   def _train_step(self):
@@ -81,11 +81,11 @@ class Dreamer(tools.Module):
 
 
     if self.her_buffer is not None:
-      for i in range(self.train_policy_steps):
+      for i in range(self.train_ddpg_steps):
           her_data = self.her_buffer.sample(self._config.her_batch_size)
           self._train_ddpg(her_data)
-          if self.kde is not None:
-            self.kde.optimize()
+    if self.kde is not None:
+      self.kde.optimize()
   
   # TODO(lisheng) How to seperate the world model from ?
   # There are from two different buffers, so it's ok to have them separately;
@@ -118,10 +118,10 @@ class Dreamer(tools.Module):
     if training and self._should_train(step):
       if self._should_pretrain():
         steps = self._config.pretrain
-        self.train_policy_steps = 1
+        self.train_ddpg_steps = 1
       else:
         steps = self._config.train_steps
-        self.train_policy_steps = self._config.train_policy_steps
+        self.train_ddpg_steps = self._config.train_ddpg_steps
 
       
       # if steps == 1:
