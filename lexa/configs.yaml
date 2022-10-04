@@ -77,6 +77,7 @@ defaults:
   grad_clip: 100
   value_grad_clip: 100
   actor_grad_clip: 100
+  gc_grad_clip: 5
   dataset_size: 1e6
   oversample_ends: False
   slow_value_target: True
@@ -358,7 +359,7 @@ antmaze_ddpg:
   # offpolicy_opt: True
   ddpg_opt: True
   relabelling: 'uniform'
-  eval_every: 15000
+  eval_every: 50000
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
   gc_actor_lr: 1e-3
@@ -390,7 +391,7 @@ antmaze_gcsl:
   units: 128
   gc_input: 'state'
   env_type: 'vector'
-  time_limit: 500
+  time_limit: 50000
   action_repeat: 1
   encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
   size: [30] # very simple environment.
@@ -424,6 +425,171 @@ antmaze_gcsl:
   train_steps: 1
   actor_lr: 5e-5
   train_ddpg_steps: 0
+
+fpp_ddpg:
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
+  gc_input: 'state'
+  env_type: 'vector'
+  time_limit: 50
+  action_repeat: 1
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
+  size: [25] # very simple environment.
+  imag_on_policy: False
+  # gcbc: True
+  # offpolicy_opt: True
+  ddpg_opt: True
+  relabelling: 'uniform'
+  eval_every: 25000
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_lr: 1e-3
+  gc_critic_lr: 1e-3
+  steps: 2e6
+  batch_size: 70
+  batch_length: 30
+  disag_units: 200
+  her: "rfaab_1_5_2_1_1"
+  replay_size: 2e6
+  her_batch_size: 2000
+  future_warm_up: 25000
+  first_visit_success: False
+  action_l2_regularization: 0.1
+  target_network_update_freq: 40
+  target_network_update_frac: 0.05
+  epsilon: 0.1
+  expl_every_ep: 2
+  envs: 1
+  train_every: 4
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 1
+
+fpp_gcsl:
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
+  gc_input: 'state'
+  env_type: 'vector'
+  time_limit: 50
+  action_repeat: 1
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
+  size: [25] # very simple environment.
+  imag_on_policy: False
+  gcbc: True
+  offpolicy_opt: True
+  ddpg_opt: False
+  first_visit_success: False
+  relabelling: 'uniform'
+  eval_every: 25000
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_lr: 1e-3
+  gc_critic_lr: 1e-3
+  steps: 2e6
+  batch_size: 70
+  batch_length: 30
+  disag_units: 200
+  # her: "rfaab_1_5_2_1_1"
+  replay_size: 2e6
+  # her_batch_size: 2000
+  # future_warm_up: 25000
+  # action_l2_regularization: 0.1
+  # target_network_update_freq: 40
+  # target_network_update_frac: 0.05
+  epsilon: 0.1
+  expl_every_ep: 2
+  envs: 1
+  train_every: 4
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 0
+
+fsk_ddpg:
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
+  gc_input: 'state'
+  env_type: 'vector'
+  time_limit: 50
+  action_repeat: 1
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
+  size: [40] # very simple environment.
+  imag_on_policy: False
+  # gcbc: True
+  # offpolicy_opt: True
+  ddpg_opt: True
+  relabelling: 'uniform'
+  eval_every: 25000
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_lr: 1e-3
+  gc_critic_lr: 1e-3
+  steps: 3e6
+  batch_size: 70
+  batch_length: 30
+  disag_units: 200
+  her: "rfaab_1_5_2_1_1"
+  replay_size: 3e6
+  her_batch_size: 2000
+  future_warm_up: 25000
+  first_visit_success: False
+  action_l2_regularization: 0.1
+  target_network_update_freq: 40
+  target_network_update_frac: 0.05
+  epsilon: 0.1
+  expl_every_ep: 2
+  envs: 1
+  train_every: 10
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 1
+
+fsk_gcsl:
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
+  gc_input: 'state'
+  env_type: 'vector'
+  time_limit: 50
+  action_repeat: 1
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
+  size: [40] # very simple environment.
+  imag_on_policy: False
+  gcbc: True
+  offpolicy_opt: True
+  ddpg_opt: False
+  relabelling: 'uniform'
+  eval_every: 25000
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_lr: 1e-3
+  gc_critic_lr: 1e-3
+  steps: 3e6
+  batch_size: 70
+  batch_length: 30
+  disag_units: 200
+  # her: "rfaab_1_5_2_1_1"
+  replay_size: 3e6
+  first_visit_success: False
+  # her_batch_size: 2000
+  # future_warm_up: 25000
+  # action_l2_regularization: 0.1
+  # target_network_update_freq: 40
+  # target_network_update_frac: 0.05
+  epsilon: 0.1
+  expl_every_ep: 2
+  envs: 1
+  train_every: 10
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 0
+
 
 v2:
   dyn_hidden: 600
