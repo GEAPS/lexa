@@ -275,7 +275,6 @@ pointmaze_ddpg:
   # offpolicy_opt: True
   ddpg_opt: True
   relabelling: 'uniform'
-  first_success: True
   eval_every: 15000
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
@@ -295,10 +294,53 @@ pointmaze_ddpg:
   target_network_update_frac: 0.05
   epsilon: 0.1
   expl_every_ep: 2
-  envs: 10
+  envs: 1
   train_every: 1
-  train_steps: 10
-  train_policy_steps: 1
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 1
+
+pointmaze_gcsl:
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
+  gc_input: 'state'
+  env_type: 'vector'
+  gc_reward: 'consine'
+  time_limit: 50
+  action_repeat: 1
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
+  size: [2] # very simple environment.
+  imag_on_policy: False
+  gcbc: True
+  offpolicy_opt: True
+  ddpg_opt: False
+  first_visit_success: True
+  relabelling: 'uniform'
+  eval_every: 15000
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_lr: 1e-3
+  gc_critic_lr: 1e-3
+  steps: 1e6
+  batch_size: 70
+  batch_length: 30
+  disag_units: 200
+  her: "rfaab_1_4_3_1_1"
+  replay_size: 1e6
+  # her_batch_size: 2000
+  # future_warm_up: 25000
+  # action_l2_regularization: 0.1
+  # target_network_update_freq: 40
+  # target_network_update_frac: 0.05
+  # epsilon: 0.1
+  expl_every_ep: 2
+  envs: 1
+  train_every: 1
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 1
 
 antmaze_ddpg:
   dyn_hidden: 128
@@ -307,7 +349,7 @@ antmaze_ddpg:
   units: 128
   gc_input: 'state'
   env_type: 'vector'
-  time_limit: 50
+  time_limit: 500
   action_repeat: 1
   encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
   size: [30] # very simple environment.
@@ -316,15 +358,14 @@ antmaze_ddpg:
   # offpolicy_opt: True
   ddpg_opt: True
   relabelling: 'uniform'
-  first_success: True
   eval_every: 15000
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
   gc_actor_lr: 1e-3
   gc_critic_lr: 1e-3
   steps: 3e6
-  batch_size: 70
-  batch_length: 30
+  batch_size: 50
+  batch_length: 40
   disag_units: 200
   her: "rfaab_1_4_3_1_1"
   replay_size: 3e6
@@ -339,8 +380,50 @@ antmaze_ddpg:
   envs: 1
   train_every: 1
   train_steps: 1
-  train_policy_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 1
 
+antmaze_gcsl:
+  dyn_hidden: 128
+  dyn_deter: 128
+  dyn_stoch: 32
+  units: 128
+  gc_input: 'state'
+  env_type: 'vector'
+  time_limit: 500
+  action_repeat: 1
+  encoder_units: [128, 128, 64] # may be too complex, but let's run it at first
+  size: [30] # very simple environment.
+  imag_on_policy: False
+  gcbc: True
+  offpolicy_opt: True
+  ddpg_opt: False
+  relabelling: 'uniform'
+  first_visit_success: True
+  eval_every: 15000
+  gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
+  gc_actor_lr: 1e-3
+  gc_critic_lr: 1e-3
+  steps: 3e6
+  batch_size: 50
+  batch_length: 40
+  disag_units: 200
+  replay_size: 3e6
+  # her_batch_size: 2000
+  # future_warm_up: 25000
+  # first_visit_success: True
+  # action_l2_regularization: 0.1
+  # target_network_update_freq: 40
+  # target_network_update_frac: 0.05
+  # epsilon: 0.1
+  # her: "rfaab_1_4_3_1_1"
+  expl_every_ep: 2
+  envs: 1
+  train_every: 1
+  train_steps: 1
+  actor_lr: 5e-5
+  train_ddpg_steps: 0
 
 v2:
   dyn_hidden: 600
