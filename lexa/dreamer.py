@@ -84,8 +84,6 @@ class Dreamer(tools.Module):
       for i in range(self.train_ddpg_steps):
           her_data = self.her_buffer.sample(self._config.her_batch_size)
           self._train_ddpg(her_data)
-    if self.kde is not None:
-      self.kde.optimize()
   
   # TODO(lisheng) How to seperate the world model from ?
   # There are from two different buffers, so it's ok to have them separately;
@@ -144,6 +142,8 @@ class Dreamer(tools.Module):
 
     if training:
       # also make actions.
+      if self.kde is not None:
+        self.kde.optimize()
       action, state = self._policy(obs, state, training, reset)
       self._step.assign_add(len(reset))
       self._logger.step = self._config.action_repeat \
@@ -329,6 +329,11 @@ def make_base_env(config, use_goal_idx=False, log_per_goal=False):
 
   elif config.task == 'antmaze':
     env = envs.AntMazeEnv(env_max_steps=config.time_limit, eval=use_goal_idx)
+  elif config.task == 'fpp':
+    env = envs.Fpp(env_max_steps=config.time_limit, test=use_goal_idx)
+  elif config.task == 'fsk':
+    env = envs.Fsk(env_max_steps=config.time_limit, test=use_goal_idx)
+    
   # elif "stack" or "pickplace" in config.task:
   #   env_type, external, internal = args.env.split('_')
   #   if external.lower() == 'obj':
