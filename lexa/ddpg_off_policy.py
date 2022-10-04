@@ -24,9 +24,9 @@ class DDPGOpt(tools.Module):
   
     kw = dict(wd=config.weight_decay, opt=config.opt)
     self._actor_opt = tools.Optimizer(
-        'actor', config.gc_actor_lr, config.opt_eps, config.actor_grad_clip, **kw)
+        'actor', config.gc_actor_lr, config.opt_eps, config.gc_grad_clip, **kw)
     self._critic_opt = tools.Optimizer(
-      'critic', config.gc_critic_lr, config.opt_eps, config.value_grad_clip, **kw)
+      'critic', config.gc_critic_lr, config.opt_eps, config.gc_grad_clip, **kw)
     self.action_scale = config.action_scale
 
     # actions are not scaled in the environments. (super important in the env.2p)
