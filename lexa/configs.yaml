@@ -340,7 +340,7 @@ pointmaze_gcsl:
   train_every: 1
   train_steps: 1
   actor_lr: 5e-5
-  train_ddpg_steps: 1
+  train_ddpg_steps: 0
 
 antmaze_ddpg:
   dyn_hidden: 128
@@ -365,7 +365,7 @@ antmaze_ddpg:
   gc_critic_lr: 1e-3
   steps: 3e6
   batch_size: 50
-  batch_length: 40
+  batch_length: 50
   disag_units: 200
   her: "rfaab_1_4_3_1_1"
   replay_size: 3e6
@@ -407,7 +407,7 @@ antmaze_gcsl:
   gc_critic_lr: 1e-3
   steps: 3e6
   batch_size: 50
-  batch_length: 40
+  batch_length: 50
   disag_units: 200
   replay_size: 3e6
   # her_batch_size: 2000
