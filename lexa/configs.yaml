@@ -10,7 +10,7 @@ defaults:
   log_every: 1e4
   reset_every: 0
   gpu_growth: True
-  precision: 16
+  precision: 32
   debug: False
   expl_gifs: False
 
@@ -276,7 +276,7 @@ pointmaze_ddpg:
   # offpolicy_opt: True
   ddpg_opt: True
   relabelling: 'uniform'
-  eval_every: 15000
+  eval_every: 500
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
   gc_actor_lr: 1e-3
