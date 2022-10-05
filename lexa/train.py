@@ -107,9 +107,9 @@ def main(logdir, config):
   # create the buffer.
   # create the data callback.
   base_env = make_base_env(config, use_goal_idx=False, log_per_goal=False)
+  state_normalizer = Normalizer(MeanStdNormalizer())
+  goal_normalizer = Normalizer(MeanStdNormalizer())
   if config.ddpg_opt:
-    state_normalizer = Normalizer(MeanStdNormalizer())
-    goal_normalizer = Normalizer(MeanStdNormalizer())
     her_buffer = OnlineHERBuffer(base_env, config, state_normalizer, goal_normalizer)
   else:
     state_normalizer = goal_normalizer = her_buffer = None
