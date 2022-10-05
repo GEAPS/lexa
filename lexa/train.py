@@ -112,7 +112,7 @@ def main(logdir, config):
   if config.ddpg_opt:
     her_buffer = OnlineHERBuffer(base_env, config, state_normalizer, goal_normalizer)
   else:
-    state_normalizer = goal_normalizer = her_buffer = None
+    her_buffer = None
   eval_envs, eval_eps, train_envs, train_eps, acts = create_envs(config, logger, her_buffer=her_buffer)
   print("setting the random seed to", config.seed)
   tools.set_global_seeds(config.seed)
