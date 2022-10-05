@@ -49,22 +49,15 @@ class GCDreamer(Dreamer):
       else:
         state[0]['image_goal'] = tf.cast(obs['image_goal'], self._float) # / 255.0 - 0.5
         state[0]['goal'] = tf.cast(obs['goal'], self._float) # / 255.0 - 0.5
-      if self._config.ddpg_opt:
-        state[0]['normalized_goal'] = self.goal_normalizer(training, state[0]['goal'])
-      else:
-        state[0]['normalized_goal'] = state[0]['goal']
+      state[0]['goal'] = self.goal_normalizer(training, state[0]['goal'])
       state[0]['skill'] = self.get_one_time_skill()
       
       # Toggle exploration
       self._should_expl_ep()
     
     obs = obs.copy()
-    if self._config.ddpg_opt:
-      obs['normalized_goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
-      obs['normalized_image'] = self.state_normalizer(training, obs['image'])
-    else:
-      obs['normalized_goal'] = obs['goal']
-      obs['normalized_image'] = obs['image']
+    obs['goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
+    obs['image'] = self.state_normalizer(training, obs['image'])
 
 
     return super()._policy(obs, state, training, reset, should_expl=self._should_expl_ep.value)
