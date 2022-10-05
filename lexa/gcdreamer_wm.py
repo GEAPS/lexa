@@ -147,19 +147,16 @@ class GCWorldModel(models.WorldModel):
       goal = obs['image_goal']
       goal_state = obs['goal']
       skill = obs['skill']
-      normalized_goal = obs['normalized_goal']
     else:
       latent, action = state
       goal = latent['image_goal']
       goal_state = latent['goal']
       skill = latent['skill']
-      normalized_goal = latent['normalized_goal']
     embed = self.encoder(obs)
     latent, _ = self.dynamics.obs_step(latent, action, embed, sample)
     # TODO encapsulate the goal into obs_step
     latent['image_goal'] = goal
     latent['goal'] = goal_state
     latent['skill'] = skill
-    latent['normalized_goal'] = normalized_goal
     feat = self.dynamics.get_feat(latent)
     return feat, latent

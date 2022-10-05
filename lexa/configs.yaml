@@ -74,9 +74,9 @@ defaults:
   value_lr: 8e-5
   actor_lr: 8e-5
   opt_eps: 1e-5
-  grad_clip: 100
-  value_grad_clip: 100
-  actor_grad_clip: 100
+  grad_clip: 20
+  value_grad_clip: 20
+  actor_grad_clip: 20
   gc_grad_clip: 5
   dataset_size: 1e6
   oversample_ends: False

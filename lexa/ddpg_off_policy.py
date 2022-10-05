@@ -46,6 +46,7 @@ class DDPGOpt(tools.Module):
       actions = actions + noises
       # actions = tf.random.uniform(shape=inputs.shape[:-1] + (self.num_actions,), minval=-1., maxval=1., dtype=dtype) * self.action_scale
     # else:
+    actions = tf.clip_by_value(actions, clip_value_min=-1, clip_value_max=1)
     return actions  * self.action_scale
 
   
