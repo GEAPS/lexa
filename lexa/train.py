@@ -22,11 +22,11 @@ class GCDreamer(Dreamer):
       self._ddpg_handler = ddpg_off_policy.DDPGOpt(config) # Thus the action size sho
     super().__init__(config, logger, dataset,  kde, her_buffer, state_normalizer, goal_normalizer)
     self._should_expl_ep = tools.EveryNCalls(config.expl_every_ep)
-    self.skill_to_use = tf.zeros([0], dtype=tf.float16)
+    self.skill_to_use = tf.zeros([0], dtype=tf.float32)
 
   def get_one_time_skill(self):
     skill = self.skill_to_use
-    self.skill_to_use = tf.zeros([0], dtype=tf.float16)
+    self.skill_to_use = tf.zeros([0], dtype=tf.float32)
     return skill
 
   # I'll apply normalization to both world model and ddpg-policy.
@@ -54,6 +54,7 @@ class GCDreamer(Dreamer):
       
       # Toggle exploration
       self._should_expl_ep()
+      print(self._should_expl_ep.value, "exploration")
     
     obs = obs.copy()
     obs['goal'] = self.goal_normalizer(False, obs['goal']) # not the actual goal
@@ -109,6 +110,7 @@ def main(logdir, config):
   base_env = make_base_env(config, use_goal_idx=False, log_per_goal=False)
   state_normalizer = Normalizer(MeanStdNormalizer())
   goal_normalizer = Normalizer(MeanStdNormalizer())
+  first_visit_success = config.first_visit_success
   if config.ddpg_opt:
     her_buffer = OnlineHERBuffer(base_env, config, state_normalizer, goal_normalizer)
   else:
@@ -121,9 +123,10 @@ def main(logdir, config):
   # prefill = 300 # debug
   print(f'Prefill dataset ({prefill} steps).')
   random_agent = lambda o, d, s: ([acts.sample() for _ in d], s)
-  tools.simulate(random_agent, train_envs, prefill)
+  tools.simulate(random_agent, train_envs, prefill, first_visit_success=first_visit_success, eval=False)
   if count_steps(config.evaldir) == 0:
-    tools.simulate(random_agent, eval_envs, episodes=1)
+    tools.simulate(random_agent, eval_envs, episodes=1,
+                   first_visit_success=first_visit_success, eval=True)
   logger.step = config.action_repeat * count_steps(config.traindir)
 
   print('Simulate agent.')
@@ -161,14 +164,12 @@ def main(logdir, config):
         #eval_envs[0].set_goal_idx(idx)
         # randomly set the goals
         eval_policy = functools.partial(agent, training=False)
-        sim_out = tools.simulate(eval_policy, eval_envs, episodes=config.envs)
-        obs, eps_data = sim_out[4], sim_out[6]
+        sim_out = tools.simulate(eval_policy, eval_envs, episodes=config.envs,
+                                 first_visit_success=first_visit_success, eval=True)
+        obs, success, eps_data = sim_out[4], sim_out[6], sim_out[7]
 
         ep_data_across_goals.append(process_eps_data(eps_data))
-        if config.first_visit_success:
-          succ_count += np.any(np.array([o['reward'] for o in obs]) == 0.)
-        else:
-          succ_count += (obs[-1]['reward'] == 0.)
+        succ_count += success
         # no video will be produced
         # video = eval_envs[0]._convert([t['image'] for t in eval_envs[0]._episode])
         # executions.append(video[None])
@@ -197,7 +198,10 @@ def main(logdir, config):
         continue
     print('Start training.')
     # the state is a tuple
-    state = tools.simulate(agent, train_envs, config.eval_every, state=state)
+    state = tools.simulate(agent, train_envs, config.eval_every, state=state,
+                           first_visit_success=first_visit_success, eval=False)
+    with pathlib.Path(logdir / ('Intrinsic_Success.csv')).open("a+") as f:
+      f.write(str(logger.step) + ' ' + str(state[-1]) + '\n')
 
     agent.save(logdir / 'variables.pkl')
   for env in train_envs + eval_envs:

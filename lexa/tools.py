@@ -230,7 +230,7 @@ def log_eval_metrics(logger, log_prefix, eval_dir, num_eval_eps):
         logger.scalar(log_prefix + 'avg/'+ key, _avg)
     logger.write()
 
-def simulate(agent, envs, steps=0, episodes=0, state=None):
+def simulate(agent, envs, steps=0, episodes=0, state=None, first_visit_success=True, eval=False):
   # Initialize or unpack simulation state.
   if state is None:
     step, episode = 0, 0
@@ -239,10 +239,15 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     obs = [None] * len(envs)
     agent_state = None
   else:
-    step, episode, done, length, obs, agent_state = state
+    step, episode, done, length, obs, agent_state, _ = state
   all_rewards = []
   #all_gt_rewards = []
   ep_data_lst= []
+  # I assume the all episodes will terminate after simulation.
+  success_count = 0
+  num_episodes = 0
+  success_tracking = [0 for i in range(len(envs))]
+
   while (steps and step < steps) or (episodes and episode < episodes):
     # Reset envs if necessary.
     if done.any():
@@ -253,11 +258,11 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
       results = [envs[i].reset() for i in indices]
       for index, result in zip(indices, results):
         obs[index] = result
-  
     # Step agents.
     obs = {k: np.stack([o[k] for o in obs]) for k in obs[0]}
     #action, agent_state = agent(obs, done, agent_state)
     agent_out = agent(obs, done, agent_state)
+    
     if len(agent_out) ==2:
       action, agent_state = agent_out
     else:
@@ -295,11 +300,29 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     length += 1
     step += (done * length).sum()
     length *= (1 - done)
-  # Return new state to allow resuming the simulation.
+    if eval or goals[0] is None:
+      reward = [o['reward'] for o in obs]
+    else:
+      reward = [envs[i].compute_reward(obs[i]['achieved_goal'], goals[i], None) for i in range(len(obs))]
+      print(obs[0]['achieved_goal'], goals[0], reward)
+
+    if first_visit_success:
+      success_tracking = [1 if reward[i] == 0. else success_tracking[i] for i in range(len(obs))]
+    else:
+      success_tracking = [int(reward[i] == 0) for i in range(len(obs))]
+
+    if done.any():
+      indices = [index for index, d in enumerate(done) if d]
+      for index, result in zip(indices, results):
+        success_count += success_tracking[index]
+        success_tracking[index] = 0
+        num_episodes += 1
+  success = success_count / num_episodes
+  # Returna1 new state to allow resuming the simulation.
   if len(ep_data_lst) > 0:
-    return (step - steps, episode - episodes, done, length, obs, agent_state, ep_data_lst)
+    return (step - steps, episode - episodes, done, length, obs, agent_state, success, ep_data_lst)
   else:
-    return (step - steps, episode - episodes, done, length, obs, agent_state)
+    return (step - steps, episode - episodes, done, length, obs, agent_state, success)
 
 
 def save_episodes(directory, episodes):
@@ -826,7 +849,7 @@ def am_sampling(obs, actions):
   s_t =   _expand_and_concat_tensor(s_t)
   s_tp1 = _expand_and_concat_tensor(s_tp1)
   a_t =   _expand_and_concat_tensor(a_t)
-  r_t =   tf.convert_to_tensor(r_t, dtype=tf.float16 )
+  r_t =   tf.convert_to_tensor(r_t, dtype=tf.float32)
   mask = 1- r_t
 
   return s_t, a_t, s_tp1, r_t, mask
@@ -861,7 +884,7 @@ def get_data_for_off_policy_training(obs, actions, next_achieved_goals, goals, r
     
     curr_state, action, next_achieved_goals, _goals = \
         _reshape(obs), _reshape(actions), _reshape(next_achieved_goals), _reshape(goals)
-    masks = np.ones(num_points, dtype=np.float16) 
+    masks = np.ones(num_points, dtype=np.float32) 
 
     if relabel_fraction > 0:
       # relabelling
@@ -881,7 +904,7 @@ def get_data_for_off_policy_training(obs, actions, next_achieved_goals, goals, r
           relabel_masks.append(int(next_idxs_for_relabelling[-1] != ((seq_len*i) + j)))
     
       next_idxs_for_relabelling = np.array(next_idxs_for_relabelling).reshape(-1, 1)
-      relabel_masks = np.array(relabel_masks, dtype=np.float16).reshape(-1,1)
+      relabel_masks = np.array(relabel_masks, dtype=np.float32).reshape(-1,1)
     
       idxs = np.random.permutation(num_points).reshape(-1,1)
       relabel_idxs, non_relabel_idxs = np.split(idxs, (int(relabel_fraction*num_points),), axis = 0)
