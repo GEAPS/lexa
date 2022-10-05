@@ -234,5 +234,19 @@ class RewardObs:
 
   def reset(self):
     obs = self._env.reset()
-    obs['reward'] = 0.0
+    obs['reward'] = -1
     return obs
+
+class ActionScale:
+
+  def __init__(self, env):
+    self._env = env
+    self.action_scale = env.action_space.high[0]
+    print("setting action scale as", self.action_scale)
+
+  def __getattr__(self, name):
+    return getattr(self._env, name)
+
+  def step(self, action, goal=None):
+    _action = action * self.action_scale
+    return self._env.step(_action, goal)
