@@ -19,7 +19,6 @@ class GCOffPolicyOpt(tools.Module):
     kw = dict(wd=config.weight_decay, opt=config.opt)
     self._actor_opt = tools.Optimizer(
         'actor', config.actor_lr, config.opt_eps, config.actor_grad_clip, **kw)
-    self.action_scale = config.action_scale
   
   # def train_gcbc(self, obs, prev_actions, goals, achieved_goals, training_goals):
   def train_gcbc(self, obs, data, env_type):
@@ -46,6 +45,6 @@ class GCOffPolicyOpt(tools.Module):
     return metrics
   
   def act(self, inputs, training=False):
-    actions = self.actor(inputs) * self.action_scale
+    actions = self.actor(inputs)
     return actions
     

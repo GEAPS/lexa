@@ -96,7 +96,7 @@ class MeanStdNormalizer(BaseNormalizer):
       self.rms = RunningMeanStd(shape=(1, ) + x.shape[1:])
     if not self.read_only and update:
       self.rms.update(x)
-    return np.clip((x - self.rms.mean) / np.sqrt(self.rms.var + self.epsilon), -self.clip_after, self.clip_after).astype(np.float16)
+    return np.clip((x - self.rms.mean) / np.sqrt(self.rms.var + self.epsilon), -self.clip_after, self.clip_after).astype(np.float32)
 
   def state_dict(self):
     if self.rms is not None:

@@ -382,6 +382,7 @@ def make_env(config, logger, mode, her_buffer, train_eps, eval_eps, use_goal_idx
       functools.partial(buffer_extension, mode, her_buffer=her_buffer)]
   env = wrappers.CollectDataset(env, callbacks)
   env = wrappers.RewardObs(env)
+  env = wrappers.ActionScale(env)
   return env
 
 def process_episode(config, logger, mode, train_eps, eval_eps, episode):

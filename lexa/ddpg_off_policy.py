@@ -27,7 +27,6 @@ class DDPGOpt(tools.Module):
         'actor', config.gc_actor_lr, config.opt_eps, config.gc_grad_clip, **kw)
     self._critic_opt = tools.Optimizer(
       'critic', config.gc_critic_lr, config.opt_eps, config.gc_grad_clip, **kw)
-    self.action_scale = config.action_scale
 
     # actions are not scaled in the environments. (super important in the env.2p)
     # also needs to scale to the action scales.
@@ -44,10 +43,10 @@ class DDPGOpt(tools.Module):
       dtype = inputs.dtype
       noises = tf.random.normal(actions.shape, stddev=0.1, dtype=dtype)
       actions = actions + noises
-      # actions = tf.random.uniform(shape=inputs.shape[:-1] + (self.num_actions,), minval=-1., maxval=1., dtype=dtype) * self.action_scale
+      # actions = tf.random.uniform(shape=inputs.shape[:-1] + (self.num_actions,), minval=-1., maxval=1., dtype=dtype)
     # else:
     actions = tf.clip_by_value(actions, clip_value_min=-1, clip_value_max=1)
-    return actions  * self.action_scale
+    return actions
 
   
   # def train_gcbc(self, obs, prev_actions, goals, achieved_goals, training_goals):
@@ -63,21 +62,22 @@ class DDPGOpt(tools.Module):
       # tape.watch(trainable_critic_variables)
       # TODO(lisheng) the input to the critic should be adjusted.
       # actions have been scaled.
-      q_next = self.critic_target(next_states, self.actor_target(next_states)*self.action_scale)
+      q_next = self.critic_target(next_states, self.actor_target(next_states))
       target =  (rewards + gammas * q_next)
       q = self.critic(states, actions)
       critic_loss = tf.reduce_mean((q - target)**2)
     # import ipdb; ipdb.set_trace()
+    metrics['ddpg_critic_loss'] = critic_loss
     metrics.update(self._critic_opt(tape, critic_loss, self.critic))
 
     with tf.GradientTape(watch_accessed_variables=True) as tape:
       # tape.watch(trainable_actor_variables)
-      a = self.actor(states) * self.action_scale
+      a = self.actor(states)
       # noises was not used in mrl's code.
       actor_loss = tf.reduce_mean(-self.critic(states, a))
       if self._config.action_l2_regularization != 0:
-        actor_loss += self._config.action_l2_regularization * tf.reduce_mean((a/self.action_scale)**2)
-    
+        actor_loss += self._config.action_l2_regularization * tf.reduce_mean(a**2)
+    metrics['ddpg_actor_loss'] = actor_loss
     metrics.update(self._actor_opt(tape, actor_loss, self.actor))
 
     # tau = 1 is completely update.

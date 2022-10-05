@@ -337,4 +337,4 @@ class ImagBehavior(tools.Module):
       self._updates.assign_add(1)
 
   def act(self, feat, *args):
-    return self.actor(feat) * self._config.action_scale
+    return self.actor(feat)
