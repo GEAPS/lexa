@@ -304,7 +304,6 @@ def simulate(agent, envs, steps=0, episodes=0, state=None, first_visit_success=T
       reward = [o['reward'] for o in obs]
     else:
       reward = [envs[i].compute_reward(obs[i]['achieved_goal'], goals[i], None) for i in range(len(obs))]
-      print(obs[0]['achieved_goal'], goals[0], reward)
 
     if first_visit_success:
       success_tracking = [1 if reward[i] == 0. else success_tracking[i] for i in range(len(obs))]
