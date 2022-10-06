@@ -169,7 +169,7 @@ def main(logdir, config):
         obs, success, eps_data = sim_out[4], sim_out[6], sim_out[7]
 
         ep_data_across_goals.append(process_eps_data(eps_data))
-        succ_count += success
+        succ_count += success * config.envs
         # no video will be produced
         # video = eval_envs[0]._convert([t['image'] for t in eval_envs[0]._episode])
         # executions.append(video[None])
