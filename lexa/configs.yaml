@@ -276,7 +276,7 @@ pointmaze_ddpg:
   # offpolicy_opt: True
   ddpg_opt: True
   relabelling: 'uniform'
-  eval_every: 500
+  eval_every: 15000
   gc_actor_units: [512, 512, 512] # keep the same as OMEGA.
   gc_critic_units: [512, 512, 512] # keep the same as OMEGA.
   gc_actor_lr: 1e-3
