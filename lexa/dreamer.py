@@ -72,7 +72,7 @@ class Dreamer(tools.Module):
     self.her_buffer = her_buffer
     self.state_normalizer = state_normalizer
     self.goal_normalizer = goal_normalizer
-    self.train_ddpg_steps = 1 # initialize as 1 in pre-training
+    self.train_policy_steps = 1 # initialize as 1 in pre-training
     self._train_step()
 
   def _train_step(self):
@@ -80,10 +80,17 @@ class Dreamer(tools.Module):
     self._train(seq_data)
 
 
-    if self.her_buffer is not None:
-      for i in range(self.train_ddpg_steps):
+    if self._config.ddpg_opt:
+      assert self.her_buffer is not None
+      for i in range(self.train_policy_steps):
           her_data = self.her_buffer.sample(self._config.her_batch_size)
           self._train_ddpg(her_data)
+    
+    if self._config.gcbc:
+      for i in range(self.train_policy_steps-1):
+        seq_data = self.normalize_data(next(self._dataset))
+        self._train_gcbc(seq_data)
+
   
   # TODO(lisheng) How to seperate the world model from ?
   # There are from two different buffers, so it's ok to have them separately;
@@ -116,10 +123,10 @@ class Dreamer(tools.Module):
     if training and self._should_train(step):
       if self._should_pretrain():
         steps = self._config.pretrain
-        self.train_ddpg_steps = 1
+        self.train_policy_steps = 1
       else:
         steps = self._config.train_steps
-        self.train_ddpg_steps = self._config.train_ddpg_steps
+        self.train_policy_steps = self._config.train_policy_steps
 
       
       # if steps == 1:
@@ -274,6 +281,14 @@ class Dreamer(tools.Module):
     
     for name, value in metrics.items():
       self._metrics[name].update_state(value)
+  
+  def _train_gcbc(self, data):
+    metrics = {}
+    _data = self._wm.preprocess(data)
+    obs = self._wm.encoder(self._wm.preprocess(data)) if self._config.offpolicy_use_embed else _data['image']
+    metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.env_type))
+    return metrics
+    # metrics.update(self._off_policy_handler.train_gcbc(obs, _data, self._config.env_type))
     
 
 def count_steps(folder):
